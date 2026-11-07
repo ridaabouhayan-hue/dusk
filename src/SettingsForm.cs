@@ -13,7 +13,9 @@ namespace Dusk
         const int LogicalW = 720, LogicalH = 540, NavW = 184;
         readonly App app;
         float s = 1f;
-        public int Page;                    // 0 algemeen, 1 uiterlijk, 2 sneltoets en timer, 3 over
+        public int Page;                    // 0 algemeen, 1 uiterlijk, 2 sneltoets en timer, 3 bijwerken, 4 over
+        public const int UpdatePage = 3;
+        int updState; DateTime updCheckedAt;   // 0 nog niet gekeken, 1 bezig, 2 nieuwste, 3 mislukt
         string hover;
         bool capturing; string captureError;
         readonly List<Hit> hits = new List<Hit>();
@@ -71,7 +73,7 @@ namespace Dusk
             // links: logo en menu
             Ui.Logo(g, R(20, 18, 22, 22), p.Dark ? Color.FromArgb(224, 231, 255) : Color.FromArgb(55, 48, 163), 4.5f, 1f, Color.Empty);
             using (Font f = Ui.F(14, s, true)) Ui.Text(g, "Dusk", f, p.T1, R(50, 14, 120, 30), -1);
-            string[] nav = { "nav.general", "nav.look", "nav.keys", "nav.about" };
+            string[] nav = { "nav.general", "nav.look", "nav.keys", "nav.update", "nav.about" };
             for (int i = 0; i < nav.Length; i++)
             {
                 RectangleF r = R(10, 58 + i * 40, NavW - 20, 36);
@@ -92,6 +94,7 @@ namespace Dusk
                 case 0: PageGeneral(g, p, x, y, w); break;
                 case 1: PageLook(g, p, x, y, w); break;
                 case 2: PageKeys(g, p, x, y, w); break;
+                case 3: PageUpdate(g, p, x, y, w); break;
                 default: PageAbout(g, p, x, y, w); break;
             }
         }
@@ -326,6 +329,97 @@ namespace Dusk
                 Ui.Stroke(g, b, S(6), p.Stroke, Math.Max(1f, s));
                 Ui.Text(g, lbl, f, p.T1, b, 0);
                 Add(b, "presets", delegate { st.Presets = new List<string>(Settings.DefaultPresets); app.SettingsChanged(); });
+            }
+        }
+
+        void PageUpdate(Graphics g, Palette p, float x, float y, float w)
+        {
+            Updates.Info pu = app.PendingUpdate;
+            string title, sub, icon; Color dot;
+            if (pu != null) { title = Lang.F("upd.ready", pu.Version); sub = Lang.T("upd.ready.d"); icon = "download"; dot = p.Accent; }
+            else if (updState == 1) { title = Lang.T("upd.checking"); sub = Lang.T("upd.checking.d"); icon = "restart"; dot = p.Sel; }
+            else if (updState == 2) { title = Lang.T("upd.latest"); sub = Lang.F("upd.latest.d", Program.Version, updCheckedAt.ToString("HH:mm")); icon = "check"; dot = Color.FromArgb(22, 163, 74); }
+            else if (updState == 3) { title = Lang.T("upd.failed"); sub = Lang.T("upd.failed.d"); icon = "close"; dot = p.Danger; }
+            else { title = "Dusk " + Program.Version; sub = Lang.T("upd.idle.d"); icon = "restart"; dot = p.Sel; }
+            RectangleF card = R(x, y, w, 88);
+            Ui.Fill(g, card, S(12), p.Fill);
+            Ui.Stroke(g, card, S(12), pu != null ? p.Accent : p.Stroke, pu != null ? S(1.5f) : Math.Max(1f, s));
+            RectangleF circle = R(x + 18, y + 22, 44, 44);
+            using (SolidBrush b = new SolidBrush(dot)) g.FillEllipse(b, circle);
+            Color onDot = pu != null ? p.OnAccent : (updState == 2 || updState == 3) ? Color.White : p.T1;
+            Ui.Icon(g, icon, new RectangleF(circle.X + S(12), circle.Y + S(12), S(20), S(20)), onDot, 2.2f);
+            string bl = app.Updating ? Lang.T("upd.busy") : pu != null ? Lang.T("upd.install") : Lang.T("upd.check");
+            using (Font fb = Ui.F(13, s, true))
+            {
+                float bw = Ui.Width(g, bl, fb) + S(36);
+                RectangleF btn = new RectangleF(card.Right - S(18) - bw, card.Y + card.Height / 2 - S(18), bw, S(36));
+                bool primary = pu != null;
+                Ui.Fill(g, btn, S(8), primary ? (hover == "upd" ? Color.FromArgb(255, Math.Min(255, p.Accent.R + 12), Math.Min(255, p.Accent.G + 12), Math.Min(255, p.Accent.B + 12)) : p.Accent) : (hover == "upd" ? p.Sel : p.Fill));
+                if (!primary) Ui.Stroke(g, btn, S(8), p.Stroke, Math.Max(1f, s));
+                Ui.TextAt(g, bl, fb, primary ? p.OnAccent : p.T1, btn.X + S(18), btn);
+                Add(btn, "upd", delegate
+                {
+                    if (app.Updating) return;
+                    if (app.PendingUpdate != null) { app.InstallUpdate(this); Invalidate(); }
+                    else if (updState != 1)
+                    {
+                        updState = 1; Invalidate();
+                        app.CheckForUpdateNow(delegate(int r)
+                        {
+                            if (IsDisposed) return;
+                            updState = r == 1 ? 0 : r == 0 ? 2 : 3;
+                            updCheckedAt = DateTime.Now;
+                            Invalidate();
+                        });
+                    }
+                });
+                float tx = circle.Right + S(16), tw = btn.X - S(12) - tx;
+                using (Font ft = Ui.F(15, s, true)) Ui.Text(g, title, ft, p.T1, new RectangleF(tx, card.Y + S(20), tw, S(24)), -1);
+                using (Font fs = Ui.F(12, s, false)) Ui.Text(g, sub, fs, p.T3, new RectangleF(tx, card.Y + S(46), tw, S(20)), -1);
+            }
+            y += 98;
+            RectangleF a = Card(g, p, x, y, w, Lang.T("upd.notify"), Lang.T("upd.notify.d"));
+            Settings st = Settings.Current;
+            Toggle(g, p, a, st.UpdateCheck, "updnotify", delegate { st.UpdateCheck = !st.UpdateCheck; app.SettingsChanged(); });
+            y += 78;
+            using (Font f = Ui.F(13, s, true)) Ui.Text(g, Lang.T("upd.news"), f, p.T1, R(x, y, w, 20), -1);
+            y += 26;
+            foreach (Changelog.Version v in Changelog.All)
+            {
+                float h = 34 + v.Lines.Length * 22 + 8;
+                if (y + h > LogicalH - 12) break;   // wat niet past laten we weg (de nieuwste staan bovenaan)
+                RectangleF box = R(x, y, w, h);
+                Ui.Fill(g, box, S(10), p.Fill);
+                float hx = x + 14;
+                using (Font fb = Ui.F(14, s, true))
+                {
+                    float vw = Ui.Width(g, v.Number, fb) / s;
+                    Ui.TextAt(g, v.Number, fb, p.T1, S(hx), R(hx, y + 6, vw + 4, 24));
+                    hx += vw + 10;
+                }
+                if (v.Number == Program.Version)
+                {
+                    using (Font fl = Ui.F(11, s, true))
+                    {
+                        string lab = Lang.T("upd.yours");
+                        float lw = Ui.Width(g, lab, fl) / s + 16;
+                        RectangleF lr = R(hx, y + 9, lw, 18);
+                        Ui.Fill(g, lr, S(9), p.Accent);
+                        Ui.TextAt(g, lab, fl, p.OnAccent, lr.X + S(8), lr);
+                        hx += lw + 10;
+                    }
+                }
+                using (Font fd = Ui.F(12, s, false)) Ui.Text(g, v.Date, fd, p.T3, R(hx, y + 6, 200, 24), -1);
+                using (Font fl = Ui.F(12, s, false))
+                {
+                    for (int i = 0; i < v.Lines.Length; i++)
+                    {
+                        float ly = y + 34 + i * 22;
+                        using (SolidBrush b = new SolidBrush(p.Accent)) g.FillEllipse(b, R(x + 18, ly + 8, 5, 5));
+                        Ui.Text(g, Changelog.Text(v.Lines[i]), fl, p.T2, R(x + 32, ly, w - 44, 22), -1);
+                    }
+                }
+                y += h + 8;
             }
         }
 

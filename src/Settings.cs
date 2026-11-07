@@ -21,6 +21,7 @@ namespace Dusk
         public string OpenAt = "smart";        // smart, tray, center, last
         public int LastX = int.MinValue, LastY = int.MinValue;   // laatste plek (schermpunten)
         public List<string> Presets = new List<string>(DefaultPresets);
+        public bool UpdateCheck = true;         // melding als er een nieuwe versie is
         public bool Forced = false;
         public bool ShowLockLogoff = false;
         public PowerAction DefaultAction = PowerAction.Shutdown;
@@ -57,6 +58,7 @@ namespace Dusk
             sb.AppendLine("openen=" + OpenAt);
             if (LastX != int.MinValue) sb.AppendLine("plek=" + LastX.ToString(C) + "," + LastY.ToString(C));
             sb.AppendLine("vaste=" + string.Join(",", Presets.ToArray()));
+            sb.AppendLine("bijwerken=" + (UpdateCheck ? "1" : "0"));
             sb.AppendLine("geforceerd=" + (Forced ? "1" : "0"));
             sb.AppendLine("vergrendelen=" + (ShowLockLogoff ? "1" : "0"));
             sb.AppendLine("standaard=" + ((int)DefaultAction).ToString(C));
@@ -107,6 +109,7 @@ namespace Dusk
                             break;
                         }
                     case "geforceerd": s.Forced = v == "1"; break;
+                    case "bijwerken": s.UpdateCheck = v != "0"; break;
                     case "vergrendelen": s.ShowLockLogoff = v == "1"; break;
                     case "standaard": if (isNum && n >= 0 && n <= 5) s.DefaultAction = (PowerAction)n; break;
                 }

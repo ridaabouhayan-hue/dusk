@@ -10,14 +10,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.0.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.0.1";
+        public const string Version = "1.1.0";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -102,7 +102,7 @@ namespace Dusk
             Shot(dir, "14-spaans", true, "dusk", "lila", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.Now, null, false); return Compose(fl, at); });
             Settings.Current.Language = "nl";
 
-            for (int page = 0; page < 4; page++)
+            for (int page = 0; page < 5; page++)
             {
                 int pg = page;
                 Shot(dir, "2" + page + "-instellingen-" + page, true, "mica", "lila", delegate { return SettingsShot(app, pg); });

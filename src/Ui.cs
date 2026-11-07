@@ -149,7 +149,8 @@ namespace Dusk
             { "plus", "M5 12h14 M12 5v14" },
             { "close", "M6 6l12 12 M18 6L6 18" },
             { "chevron", "M6 9l6 6 6-6" },
-            { "check", "M5 12.5l4.5 4.5L19 7.5" }
+            { "check", "M5 12.5l4.5 4.5L19 7.5" },
+            { "download", "M12 3v12 M7 10l5 5 5-5 M5 20h14" }
         };
 
         static readonly Dictionary<string, GraphicsPath> Cache = new Dictionary<string, GraphicsPath>();

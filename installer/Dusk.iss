@@ -69,11 +69,44 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\Dusk.exe"; Description: "{cm:OpenNow}"; Flags: nowait postinstall skipifsilent
+; bijwerken vanuit Dusk (met /BIJWERKEN): Dusk daarna vanzelf weer starten, stil in de taakbalk
+Filename: "{app}\Dusk.exe"; Parameters: "--opstarten"; Flags: nowait; Check: IsUpdateRun
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C taskkill /IM Dusk.exe /F"; Flags: runhidden; RunOnceId: "StopDusk"
 
 [Code]
+var
+  Installed: Boolean;
+
+// Is deze installer gestart door "bijwerken met een klik" in Dusk?
+function IsUpdateRun: Boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  for i := 1 to ParamCount do
+    if CompareText(ParamStr(i), '/BIJWERKEN') = 0 then Result := True;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then Installed := True;
+end;
+
+// Mislukt het bijwerken (virusscanner, volle schijf): Dusk toch weer starten, de oude versie staat er nog
+procedure DeinitializeSetup;
+var
+  rc: Integer;
+  exe: String;
+begin
+  if IsUpdateRun and (not Installed) then
+  begin
+    exe := ExpandConstant('{localappdata}\Programs\Dusk\Dusk.exe');
+    if FileExists(exe) then Exec(exe, '--opstarten', '', SW_SHOWNORMAL, ewNoWait, rc);
+  end;
+end;
+
 // Na het verwijderen: vragen of de instellingen in %APPDATA%\Dusk ook weg mogen. Bij stil verwijderen nooit.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var

@@ -18,6 +18,10 @@ Kijk bij **Releases** en kies `Dusk-Setup.exe`. De installer heeft geen beheerde
 - **Timer loopt:** het icoon in de taakbalk dooft langzaam uit. Een minuut van tevoren krijg je een melding met *+15 min* en *Annuleren*.
 - **Instellingen:** het tandwiel, `Ctrl + ,` of rechtsklik op het icoon. Taal (Nederlands, English, Español, Français), licht of donker, achtergrond (Mica, effen, schemer), accentkleur, sneltoets en meer.
 
+## Bijwerken
+
+Nieuwe versies installeer je met een klik bij **Instellingen > Bijwerken**. Dusk kijkt zelf af en toe of er iets nieuws is en meldt het dan (uit te zetten). Het bestand wordt gecontroleerd voordat het wordt geïnstalleerd.
+
 ## Goed om te weten
 
 - Afsluiten gaat netjes: programma's met werk dat nog niet is opgeslagen mogen eerst vragen of je wilt opslaan. Geforceerd afsluiten kan in Instellingen.

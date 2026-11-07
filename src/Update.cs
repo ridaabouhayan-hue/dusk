@@ -1,0 +1,174 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Threading;
+
+namespace Dusk
+{
+    // ------------------------------------------------------------------ Nieuwe versie? Alleen een vraag aan GitHub, er gaat niets van jou mee.
+    public static class Updates
+    {
+        public const string Api = "https://api.github.com/repos/ridaabouhayan-hue/dusk/releases/latest";
+        public const string Page = "https://github.com/ridaabouhayan-hue/dusk/releases/latest";
+        const string DownloadPrefix = "https://github.com/ridaabouhayan-hue/dusk/releases/download/";
+
+        // Wat we over de nieuwe versie weten: nummer, pagina, de installer en zijn controlecode
+        public class Info { public string Version, PageUrl, SetupUrl, Sha256; }
+
+        // Na het bijwerken: melden dat het gelukt is (of niet)
+        public static string FlagPath { get { return Path.Combine(Log.Dir, "bijwerken.vlag"); } }
+
+        // Kijkt op de achtergrond. found krijgt de nieuwe versie (bijvoorbeeld "1.2.1") en het adres van de pagina.
+        public static void CheckLater(int delayMs, Action<Info> found) { CheckLater(delayMs, found, null, null); }
+
+        // nothing: je hebt de nieuwste; failed: kon niet kijken (geen internet). Voor "Nu kijken".
+        public static void CheckLater(int delayMs, Action<Info> found, Action nothing, Action failed)
+        {
+            Thread th = new Thread(delegate()
+            {
+                try
+                {
+                    Thread.Sleep(delayMs);
+                    ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(Api);
+                    req.UserAgent = "Dusk/" + Program.Version;
+                    req.Accept = "application/vnd.github+json";
+                    req.Timeout = 8000; req.ReadWriteTimeout = 8000;
+                    string body;
+                    using (WebResponse resp = req.GetResponse())
+                    using (StreamReader r = new StreamReader(resp.GetResponseStream()))
+                    {
+                        char[] buf = new char[65536];
+                        int n = r.ReadBlock(buf, 0, buf.Length);  // nooit meer dan 64 kB lezen
+                        body = new string(buf, 0, n);
+                    }
+                    Info info = Parse(body);
+                    if (info == null) { if (failed != null) failed(); }   // een raar antwoord: dan weten we het niet
+                    else if (IsNewer(info.Version, Program.Version)) found(info);
+                    else if (nothing != null) nothing();
+                }
+                catch (WebException) { if (failed != null) failed(); }      // geen internet: bij de automatische check niets melden
+                catch (Exception ex) { Log.Error("Zoeken naar een nieuwe versie", ex); if (failed != null) failed(); }
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        // Het antwoord van GitHub lezen: versie, pagina, en (als die er is) de installer met zijn controlecode
+        public static Info Parse(string body)
+        {
+            Match tag = Regex.Match(body ?? "", "\"tag_name\"\\s*:\\s*\"v?([0-9.]+)\"");
+            if (!tag.Success) return null;
+            Match url = Regex.Match(body, "\"html_url\"\\s*:\\s*\"(https://github\\.com/[^\"]+/releases/[^\"]+)\"");
+            Info info = new Info();
+            info.Version = tag.Groups[1].Value;
+            info.PageUrl = url.Success ? url.Groups[1].Value : Page;
+            // het stuk van de lijst dat over Dusk-Setup.exe gaat (tot de naam van het volgende bestand)
+            int at = body.IndexOf("\"name\":\"Dusk-Setup.exe\"", StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                int end = body.IndexOf("\"name\":", at + 10, StringComparison.Ordinal);
+                string seg = body.Substring(at, (end < 0 ? body.Length : end) - at);
+                Match dg = Regex.Match(seg, "\"digest\"\\s*:\\s*\"sha256:([0-9a-f]{64})\"");
+                Match dl = Regex.Match(seg, "\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"");
+                if (dg.Success && dl.Success && dl.Groups[1].Value.StartsWith(DownloadPrefix) && dl.Groups[1].Value.EndsWith("/Dusk-Setup.exe"))
+                { info.Sha256 = dg.Groups[1].Value; info.SetupUrl = dl.Groups[1].Value; }
+            }
+            return info;
+        }
+
+        // De nieuwe installer ophalen en controleren. done(pad) met het bestand als alles klopt, done(null) als iets misging.
+        public static void Download(Info info, Action<string> done)
+        {
+            Thread th = new Thread(delegate()
+            {
+                string file = null;
+                try
+                {
+                    if (info == null || info.SetupUrl == null || info.Sha256 == null) { done(null); return; }
+                    // een nieuwe map met een willekeurige naam (niemand kan die van tevoren klaarzetten)
+                    string dir = Path.Combine(Path.GetTempPath(), "Dusk-bijwerken-" + Path.GetRandomFileName().Replace(".", ""));
+                    Directory.CreateDirectory(dir);
+                    file = Path.Combine(dir, "Dusk-Setup-" + Regex.Replace(info.Version, "[^0-9.]", "") + ".exe");
+                    ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(info.SetupUrl);
+                    req.UserAgent = "Dusk/" + Program.Version;
+                    req.Timeout = 30000; req.ReadWriteTimeout = 30000;
+                    string got;
+                    using (WebResponse resp = req.GetResponse())
+                    using (Stream src = resp.GetResponseStream())
+                    using (FileStream dst = new FileStream(file, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    using (SHA256 sha = SHA256.Create())
+                    {
+                        // GitHub stuurt door naar zijn eigen opslag; nergens anders heen
+                        Uri u = resp.ResponseUri;
+                        if (u.Scheme != "https" || !(u.Host == "github.com" || u.Host.EndsWith(".githubusercontent.com"))) throw new IOException("Onverwachte plek: " + u.Host);
+                        byte[] buf = new byte[81920];
+                        long total = 0; int n;
+                        while ((n = src.Read(buf, 0, buf.Length)) > 0)
+                        {
+                            total += n;
+                            if (total > 60L * 1024 * 1024) throw new IOException("Download te groot");   // een installer is een paar MB
+                            dst.Write(buf, 0, n);
+                            sha.TransformBlock(buf, 0, n, null, 0);   // de controlecode tijdens het schrijven uitrekenen
+                        }
+                        sha.TransformFinalBlock(new byte[0], 0, 0);
+                        got = BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
+                    }
+                    // klopt de controlecode? Dan is het echt het bestand van GitHub en is er onderweg niets aan veranderd
+                    if (got != info.Sha256) { Log.Info("Bijwerken: controlecode klopt niet, bestand weggegooid"); try { File.Delete(file); } catch { } done(null); return; }
+                    done(file);
+                }
+                catch (Exception ex) { Log.Error("Nieuwe versie downloaden", ex); try { if (file != null) File.Delete(file); } catch { } done(null); }
+            });
+            th.IsBackground = true;
+            th.Start();
+        }
+
+        // Oude downloads opruimen (bij het starten; een installer die nog loopt laten we staan)
+        public static void CleanUp()
+        {
+            try
+            {
+                foreach (string d in Directory.GetDirectories(Path.GetTempPath(), "Dusk-bijwerken*"))
+                    try { Directory.Delete(d, true); } catch { }
+            }
+            catch { }
+        }
+
+        // Het vlagbestand: welke versie we gingen installeren en wanneer
+        public static void WriteFlag(string version) { Directory.CreateDirectory(Log.Dir); File.WriteAllText(FlagPath, version + "|" + DateTime.UtcNow.Ticks); }
+
+        // Na de start: 1 = net goed bijgewerkt, -1 = bijwerken is niet gelukt, 0 = er was niets
+        public static int ReadFlag()
+        {
+            try
+            {
+                if (!File.Exists(FlagPath)) return 0;
+                string[] p = File.ReadAllText(FlagPath).Trim().Split('|');
+                File.Delete(FlagPath);
+                long t;
+                bool recent = p.Length == 2 && long.TryParse(p[1], out t) && (DateTime.UtcNow - new DateTime(t, DateTimeKind.Utc)).TotalMinutes < 30;
+                return recent && p[0] == Program.Version ? 1 : -1;
+            }
+            catch { return 0; }
+        }
+
+        public static bool IsNewer(string other, string mine)
+        {
+            Version a, b;
+            try { a = new Version(Pad(other)); b = new Version(Pad(mine)); } catch { return false; }
+            return a > b;
+        }
+
+        static string Pad(string v)
+        {
+            v = v.Trim().TrimStart('v', 'V');
+            int dots = v.Split('.').Length - 1;
+            while (dots++ < 1) v += ".0";
+            return v;
+        }
+    }
+}

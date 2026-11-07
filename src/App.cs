@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace Dusk
@@ -45,6 +46,89 @@ namespace Dusk
             Scheduler.Resumed += delegate { Tray.Balloon(Lang.T("note.resumed")); };
 
             if (!startup) Flyout.ShowFlyout(true, Flyout.Origin.Launch);
+
+            // Net bijgewerkt? Even melden. Daarna af en toe kijken of er een nieuwe versie is.
+            IntPtr force = Flyout.Handle;   // venster aanmaken, zodat antwoorden van de achtergrond hier terechtkomen
+            ui = SynchronizationContext.Current;
+            int flag = Updates.ReadFlag();
+            Updates.CleanUp();
+            if (flag == 1) Tray.Balloon(Lang.F("upd.done", Program.Version));
+            else if (flag == -1) Tray.Balloon(Lang.T("upd.fail"));
+            updateTimer.Interval = 12 * 60 * 60 * 1000;
+            updateTimer.Tick += delegate { AutoCheck(0); };
+            updateTimer.Start();
+            AutoCheck(20000);
+        }
+
+        // ---------------------------------------------------------------- bijwerken met een klik
+        SynchronizationContext ui;
+        readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer();
+        public Updates.Info PendingUpdate;
+        public bool Updating;
+
+        void OnUi(Action a) { if (ui != null) ui.Post(delegate { try { a(); } catch (Exception e) { Log.Error("Bijwerken", e); } }, null); }
+
+        void AutoCheck(int delay)
+        {
+            if (!Settings.Current.UpdateCheck || PendingUpdate != null) return;
+            Updates.CheckLater(delay, delegate(Updates.Info info) { OnUi(delegate { UpdateFound(info, false); }); });
+        }
+
+        void UpdateFound(Updates.Info info, bool fromSettings)
+        {
+            bool wasNew = PendingUpdate == null || PendingUpdate.Version != info.Version;
+            PendingUpdate = info;
+            if (settings != null && !settings.IsDisposed) settings.Invalidate();
+            if (!fromSettings && wasNew) Tray.Balloon(Lang.F("upd.found", info.Version), true);
+        }
+
+        // result: 1 = er is iets nieuws, 0 = je hebt de nieuwste, -1 = kon niet kijken
+        public void CheckForUpdateNow(Action<int> result)
+        {
+            Updates.CheckLater(0,
+                delegate(Updates.Info info) { OnUi(delegate { UpdateFound(info, true); result(1); }); },
+                delegate { OnUi(delegate { result(0); }); },
+                delegate { OnUi(delegate { result(-1); }); });
+        }
+
+        // Downloaden, de controlecode nakijken, de installer stil laten lopen; die start Dusk daarna weer
+        public void InstallUpdate(IWin32Window owner)
+        {
+            Updates.Info info = PendingUpdate;
+            if (info == null || Updating) return;
+            if (info.SetupUrl == null || info.Sha256 == null)
+            {
+                // geen controlecode bij deze versie: dan niet zelf installeren, alleen de pagina openen
+                try { if (info.PageUrl.StartsWith("https://github.com/")) System.Diagnostics.Process.Start(info.PageUrl); } catch { }
+                return;
+            }
+            Updating = true;
+            string q = Lang.F("upd.confirm", info.Version) + (Scheduler.Active ? " " + Lang.T("upd.confirm.timer") : "");
+            if (MessageBox.Show(owner, q, "Dusk", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) { Updating = false; return; }
+            Tray.Balloon(Lang.T("upd.downloading"));
+            Updates.Download(info, delegate(string file)
+            {
+                OnUi(delegate
+                {
+                    Updating = false;
+                    if (file == null) { Tray.Balloon(Lang.T("upd.fail")); return; }
+                    try
+                    {
+                        Updates.WriteFlag(info.Version);
+                        System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo(file, "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCANCEL /BIJWERKEN");
+                        psi.UseShellExecute = true;
+                        System.Diagnostics.Process.Start(psi);
+                        Log.Info("Bijwerken naar " + info.Version);
+                        Quit();   // de installer vervangt het programma en start het daarna weer
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("Installer starten", ex);
+                        try { System.IO.File.Delete(Updates.FlagPath); } catch { }
+                        Tray.Balloon(Lang.T("upd.fail"));
+                    }
+                });
+            });
         }
 
         public void RegisterHotkey(bool tell)
@@ -84,7 +168,9 @@ namespace Dusk
             else Flyout.ShowFlyout(true, origin);
         }
 
-        public void OpenSettings()
+        public void OpenSettings() { OpenSettings(-1); }
+
+        public void OpenSettings(int page)
         {
             Flyout.HideFlyout();
             if (settings == null || settings.IsDisposed)
@@ -92,6 +178,7 @@ namespace Dusk
                 settings = new SettingsForm(this);
                 settings.FormClosed += delegate { settings = null; };
             }
+            if (page >= 0) { settings.Page = page; settings.Invalidate(); }
             settings.Show();
             settings.Activate();
             W.ForceForeground(settings.Handle);
@@ -117,7 +204,7 @@ namespace Dusk
         {
             if (cancelTimer && Scheduler.Active) Scheduler.Cancel();
             Flyout.HideFlyout();
-            Timer t = new Timer();
+            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
             t.Interval = 150;
             t.Tick += delegate
             {
@@ -139,6 +226,7 @@ namespace Dusk
         public void Quit()
         {
             Quitting = true;
+            updateTimer.Stop();
             Scheduler.Cancel();
             Tray.Dispose();
             if (settings != null && !settings.IsDisposed) settings.Close();

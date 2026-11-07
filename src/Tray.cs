@@ -23,6 +23,7 @@ namespace Dusk
             icon.MouseClick += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) app.Toggle(Flyout.Origin.Tray); };
             icon.ContextMenuStrip = menu;
             menu.Opening += delegate { BuildMenu(); };
+            icon.BalloonTipClicked += delegate { if (balloonIsUpdate) app.OpenSettings(SettingsForm.UpdatePage); };
             icon.Visible = true;
             Update();
         }
@@ -42,6 +43,8 @@ namespace Dusk
                 menu.Items.Add(Lang.F("tray.add", Settings.Current.StepMinutes), null, delegate { app.Scheduler.Add(Settings.Current.StepMinutes); });
                 menu.Items.Add(Lang.T("tray.cancel"), null, delegate { app.Scheduler.Cancel(); });
             }
+            if (app.PendingUpdate != null)
+                menu.Items.Add(Lang.F("tray.update", app.PendingUpdate.Version), null, delegate { app.OpenSettings(SettingsForm.UpdatePage); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Lang.T("tray.settings"), null, delegate { app.OpenSettings(); });
             menu.Items.Add(Lang.T("tray.exit"), null, delegate { app.Quit(); });
@@ -107,9 +110,14 @@ namespace Dusk
             return bmp;
         }
 
-        public void Balloon(string text)
+        bool balloonIsUpdate;
+
+        public void Balloon(string text) { Balloon(text, false); }
+
+        public void Balloon(string text, bool isUpdate)
         {
-            try { icon.ShowBalloonTip(6000, "Dusk", text, ToolTipIcon.Info); } catch { }
+            balloonIsUpdate = isUpdate;
+            try { icon.ShowBalloonTip(isUpdate ? 9000 : 6000, "Dusk", text, ToolTipIcon.Info); } catch { }
         }
 
         public void Dispose()

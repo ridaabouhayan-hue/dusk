@@ -30,4 +30,5 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 
 ## GitHub
 - Publieke repository `dusk`. GitHub Actions op `windows-latest`: bouwen, tests, zelftest, opstarttest, installer (Inno Setup, per gebruiker in %LOCALAPPDATA%\Programs\Dusk).
-- Release gaat vanzelf bij een nieuw versienummer (`Version` in `src/Program.cs`). Werk dan ook `docs/RELEASE.md` bij.
+- Release gaat vanzelf bij een nieuw versienummer (`Version` in `src/Program.cs`). Werk dan ook `docs/RELEASE.md` bij en zet bovenaan `src/Changelog.cs` een blok voor de nieuwe versie (de test controleert dat).
+- Bijwerken met een klik (`src/Update.cs`, zelfde aanpak als NexusPen): Dusk vraagt GitHub om de laatste Release, downloadt `Dusk-Setup.exe`, controleert de SHA-256 uit de asset-digest van GitHub en start de installer met `/SILENT ... /BIJWERKEN`; de installer start Dusk daarna weer.

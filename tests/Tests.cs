@@ -30,6 +30,7 @@ namespace Dusk
             Run("instellingen", SettingsTests);
             Run("afsluitvlaggen", PowerFlags);
             Run("timer", SchedulerTests);
+            Run("bijwerken", UpdateTests);
             Console.WriteLine(passed + " geslaagd, " + failed + " mislukt");
             return failed == 0 ? 0 : 1;
         }
@@ -189,6 +190,26 @@ namespace Dusk
             pc = PowerCaps.FromBytes(caps);
             True(pc.CanSleep && !pc.CanHibernate && pc.ModernStandby, "Modern Standby");
             True(!PowerCaps.FromBytes(new byte[4]).CanSleep, "te kort");
+        }
+
+        static void UpdateTests()
+        {
+            Eq(Program.Version, Changelog.All[0].Number, "bovenste blok in Wat is er nieuw is deze versie");
+            True(Updates.IsNewer("1.1.1", "1.1.0"), "nieuwer");
+            True(!Updates.IsNewer("1.0.9", "1.1.0"), "ouder");
+            True(Updates.IsNewer("v2.0", "1.9.9"), "met v ervoor");
+            True(!Updates.IsNewer("onzin", "1.0.0"), "onzin");
+            string body = "{\"tag_name\":\"v1.2.0\",\"html_url\":\"https://github.com/ridaabouhayan-hue/dusk/releases/tag/v1.2.0\",\"assets\":[" +
+                "{\"name\":\"Dusk-Setup.exe\",\"digest\":\"sha256:" + new string('a', 64) + "\",\"browser_download_url\":\"https://github.com/ridaabouhayan-hue/dusk/releases/download/v1.2.0/Dusk-Setup.exe\"}," +
+                "{\"name\":\"Dusk.exe\",\"digest\":\"sha256:" + new string('b', 64) + "\",\"browser_download_url\":\"https://github.com/ridaabouhayan-hue/dusk/releases/download/v1.2.0/Dusk.exe\"}]}";
+            Updates.Info info = Updates.Parse(body);
+            True(info != null, "antwoord gelezen");
+            Eq("1.2.0", info.Version, "versie");
+            Eq(new string('a', 64), info.Sha256, "controlecode van de installer, niet van de exe");
+            True(info.SetupUrl.EndsWith("/Dusk-Setup.exe"), "installer");
+            string evil = body.Replace("https://github.com/ridaabouhayan-hue/dusk/releases/download/v1.2.0/Dusk-Setup.exe", "https://example.com/Dusk-Setup.exe");
+            True(Updates.Parse(evil).SetupUrl == null, "andere site: niet zelf installeren");
+            True(Updates.Parse("{}") == null, "leeg antwoord");
         }
 
         static void SchedulerTests()
