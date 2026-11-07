@@ -1,0 +1,161 @@
+name: Bouwen en testen
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# Standaard mag deze workflow alleen lezen. Alleen de stappen die echt iets op GitHub zetten krijgen schrijfrechten.
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    outputs:
+      nummer: ${{ steps.versie.outputs.nummer }}
+    steps:
+      # acties op een vaste versie (commit), zodat er nooit ongemerkt andere code meedraait
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Dusk bouwen en tests draaien
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File build\build.ps1
+
+      - name: Zelftest (alle schermen tekenen)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "out\Dusk.exe" -ArgumentList "--zelftest","--map","out\schermen" -PassThru -Wait -RedirectStandardOutput "out\zelftest.txt" -RedirectStandardError "out\zelftest-fouten.txt"
+          Get-Content "out\zelftest.txt" -ErrorAction SilentlyContinue
+          Get-Content "out\zelftest-fouten.txt" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "Zelftest mislukt met code $($p.ExitCode)" }
+
+      - name: Opstarttest (Dusk start, blijft draaien en gebruikt weinig geheugen)
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:APPDATA "Dusk\log.txt"
+          if (Test-Path $log) { Remove-Item $log }
+          $p = Start-Process -FilePath "out\Dusk.exe" -ArgumentList "--opstarten" -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { Get-Content $log -ErrorAction SilentlyContinue; throw "Dusk stopte vanzelf (code $($p.ExitCode))" }
+          $p.Refresh()
+          $mb = [math]::Round($p.PrivateMemorySize64 / 1MB, 1)
+          Write-Host "Geheugen: $mb MB"
+          # tweede keer starten: mag geen tweede Dusk opleveren
+          $q = Start-Process -FilePath "out\Dusk.exe" -ArgumentList "--opstarten" -PassThru
+          if (-not $q.WaitForExit(10000)) { $q.Kill(); throw "Tweede Dusk bleef draaien" }
+          Stop-Process -Id $p.Id -Force
+          Get-Content $log -ErrorAction SilentlyContinue
+          if ((Get-Content $log -ErrorAction SilentlyContinue) -match " FOUT ") { throw "Er staan fouten in het logboek" }
+
+      - name: Versie bepalen
+        id: versie
+        shell: pwsh
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # het versienummer staat in src/Program.cs (Version = "1.2.3"); bij een versietag telt de tag
+          if ($env:REF -like "refs/tags/v*") { $v = $env:REF_NAME.TrimStart("v") }
+          else { $v = (Select-String -Path src\Program.cs -Pattern 'Version = "([0-9.]+)"').Matches[0].Groups[1].Value }
+          if (-not $v) { throw "Versienummer niet gevonden in src\Program.cs" }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Vreemd versienummer: $v" }
+          "nummer=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Installer maken (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=${{ steps.versie.outputs.nummer }}" installer\Dusk.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer maken mislukt" }
+
+      - name: Bestanden bewaren
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Dusk-${{ steps.versie.outputs.nummer }}
+          path: |
+            out/Dusk.exe
+            out/Dusk-Setup.exe
+
+      - name: Schermafbeeldingen van de zelftest bewaren
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Dusk-schermen
+          path: out/schermen/*.png
+          if-no-files-found: warn
+
+  # De schermafbeeldingen op een aparte tak zetten, zodat ze zonder inloggen te bekijken zijn
+  schermen:
+    needs: windows
+    if: always() && github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: Dusk-schermen
+          path: schermen
+      - name: Op de tak zelftest-schermen zetten
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -d schermen ]; then echo "Geen schermafbeeldingen"; exit 0; fi
+          cd schermen
+          git init -q -b zelftest-schermen
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Schermen van ${{ github.sha }}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" zelftest-schermen
+
+  # Een Release met de setup en de losse exe, vanzelf zodra er een nieuw versienummer op main staat en alles groen is.
+  release:
+    needs: windows
+    if: needs.windows.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Bestaat deze versie al?
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMMER: ${{ needs.windows.outputs.nummer }}
+        run: |
+          if gh release view "v${NUMMER}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Versie ${NUMMER} staat er al, geen nieuwe Release"
+            echo "nieuw=nee" >> "$GITHUB_OUTPUT"
+          else
+            echo "nieuw=ja" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        if: steps.check.outputs.nieuw == 'ja'
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: steps.check.outputs.nieuw == 'ja'
+        with:
+          name: Dusk-${{ needs.windows.outputs.nummer }}
+          path: out
+      - name: Release maken
+        if: steps.check.outputs.nieuw == 'ja'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ needs.windows.outputs.nummer }}
+          target_commitish: ${{ github.sha }}
+          name: Dusk ${{ needs.windows.outputs.nummer }}
+          body_path: docs/RELEASE.md
+          files: |
+            out/Dusk-Setup.exe
+            out/Dusk.exe

@@ -1,0 +1,148 @@
+using System;
+using System.Collections.Generic;
+
+namespace Dusk
+{
+    // Alle teksten in vier talen. Ontbreekt een tekst, dan Engels, en anders de sleutel zelf.
+    public static class Lang
+    {
+        public static readonly Dictionary<string, Dictionary<string, string>> All = new Dictionary<string, Dictionary<string, string>>();
+
+        public static string T(string key)
+        {
+            string lang = Settings.Current != null ? Settings.Current.Language : "en";
+            return T(lang, key);
+        }
+
+        public static string T(string lang, string key)
+        {
+            Dictionary<string, string> d;
+            string v;
+            if (All.TryGetValue(lang, out d) && d.TryGetValue(key, out v)) return v;
+            if (All.TryGetValue("en", out d) && d.TryGetValue(key, out v)) return v;
+            return key;
+        }
+
+        public static string F(string key, params object[] args) { return string.Format(T(key), args); }
+
+        public static string Name(string lang)
+        {
+            switch (lang) { case "nl": return "Nederlands"; case "es": return "Español"; case "fr": return "Français"; default: return "English"; }
+        }
+
+        static readonly string[] Keys = {
+            "act.sleep", "act.hibernate", "act.restart", "act.shutdown", "act.lock", "act.logoff",
+            "now.sleep", "now.hibernate", "now.restart", "now.shutdown", "now.lock", "now.logoff",
+            "in", "at", "when", "now", "unit.h", "hint.time", "unavailable",
+            "btn.cancel", "btn.donow", "btn.add", "warn.save", "undo.hint", "running.at",
+            "tray.open", "tray.cancel", "tray.add", "tray.settings", "tray.exit", "note.resumed", "note.hotkey",
+            "err.sleep", "err.hibernate", "err.privilege", "err.generic",
+            "set.title", "nav.general", "nav.look", "nav.keys", "nav.about",
+            "set.lang", "set.autostart", "set.autostart.d", "set.forced", "set.forced.d", "set.lock", "set.lock.d", "set.default", "set.default.d",
+            "set.theme", "theme.system", "theme.light", "theme.dark", "theme.system.d",
+            "set.backdrop", "bd.mica", "bd.mica.d", "bd.solid", "bd.solid.d", "bd.dusk", "bd.dusk.d",
+            "set.accent", "acc.lila", "acc.perzik", "acc.roze", "acc.blauw", "acc.windows",
+            "set.hotkey", "set.hotkey.d", "set.change", "set.press", "set.taken", "set.step", "set.step.d", "set.warn", "set.warn.d", "warn.off",
+            "set.undo", "set.undo.d", "on", "off", "about.version", "about.text", "about.log", "about.github", "about.privacy"
+        };
+
+        static void Add(string lang, params string[] values)
+        {
+            if (values.Length != Keys.Length) throw new InvalidOperationException("Taal " + lang + ": " + values.Length + " teksten, verwacht " + Keys.Length);
+            Dictionary<string, string> d = new Dictionary<string, string>();
+            for (int i = 0; i < Keys.Length; i++) d[Keys[i]] = values[i];
+            All[lang] = d;
+        }
+
+        public static int KeyCount { get { return Keys.Length; } }
+
+        static Lang()
+        {
+            Add("nl",
+                "Slaapstand", "Sluimerstand", "Opnieuw opstarten", "Afsluiten", "Vergrendelen", "Afmelden",
+                "Nu in slaapstand", "Nu in sluimerstand", "Nu opnieuw opstarten", "Nu afsluiten", "Nu vergrendelen", "Nu afmelden",
+                "over {0}", "om {0}", "Wanneer", "Nu", "u", "Typ minuten of een tijd, zoals 23:30", "Staat uit in Windows",
+                "Annuleren", "Nu doen", "+{0} min", "Sla je werk op.", "Druk op Esc om te stoppen", "om {0}",
+                "Openen", "Timer annuleren", "+{0} minuten", "Instellingen", "Dusk stoppen", "Je timer is gestopt, omdat de pc in slaapstand was.", "Sneltoets {0} was bezet, Dusk gebruikt nu {1}.",
+                "Slaapstand is niet beschikbaar op deze pc.", "Sluimerstand staat uit in Windows.", "Windows staat afsluiten niet toe.", "Dat lukte niet. Probeer het nog eens.",
+                "Instellingen", "Algemeen", "Uiterlijk", "Sneltoets en timer", "Over",
+                "Taal", "Starten met Windows", "Staat klaar in de taakbalk, gebruikt bijna geen geheugen", "Geforceerd afsluiten", "Niet wachten op programma's die nog willen opslaan", "Vergrendelen en afmelden tonen", "Twee extra opties in het menu", "Standaard gekozen", "Deze optie staat klaar als je Dusk opent",
+                "Licht of donker", "Systeem", "Licht", "Donker", "volgt Windows",
+                "Achtergrond", "Mica", "kleur van je bureaublad", "Effen", "vast grijs", "Schemer", "nacht naar gloed",
+                "Accentkleur", "Lila", "Perzik", "Roze", "Blauw", "Windows",
+                "Sneltoets om te openen", "Werkt overal, ook in een ander programma", "Wijzigen", "Druk nu je sneltoets in...", "Die sneltoets is al bezet. Kies een andere.", "Stap voor + en −", "Hoeveel tijd er per druk bij of af gaat", "Waarschuwing vooraf", "Een melding voordat de timer afloopt", "Uit",
+                "Even wachten bij Nu", "5 seconden om nog te annuleren met Esc", "Aan", "Uit", "Versie {0}", "Dusk zet je pc uit, in slaap of opnieuw aan. Met een sneltoets en je pijltjestoetsen, en een timer als je wilt.", "Logboek openen", "Bekijken op GitHub", "Werkt helemaal offline. Er gaat niets naar internet.");
+
+            Add("en",
+                "Sleep", "Hibernate", "Restart", "Shut down", "Lock", "Sign out",
+                "Sleep now", "Hibernate now", "Restart now", "Shut down now", "Lock now", "Sign out now",
+                "in {0}", "at {0}", "When", "Now", "h", "Type minutes or a time, like 23:30", "Turned off in Windows",
+                "Cancel", "Do it now", "+{0} min", "Save your work.", "Press Esc to stop", "at {0}",
+                "Open", "Cancel timer", "+{0} minutes", "Settings", "Quit Dusk", "Your timer was stopped because the PC was asleep.", "Shortcut {0} was taken, Dusk now uses {1}.",
+                "Sleep is not available on this PC.", "Hibernate is turned off in Windows.", "Windows does not allow shutting down.", "That did not work. Please try again.",
+                "Settings", "General", "Appearance", "Shortcut and timer", "About",
+                "Language", "Start with Windows", "Waits in the taskbar, uses almost no memory", "Force shutdown", "Do not wait for apps that still want to save", "Show lock and sign out", "Two extra options in the menu", "Selected by default", "This option is ready when you open Dusk",
+                "Light or dark", "System", "Light", "Dark", "follows Windows",
+                "Background", "Mica", "colour of your desktop", "Solid", "plain grey", "Dusk", "night to glow",
+                "Accent colour", "Lilac", "Peach", "Pink", "Blue", "Windows",
+                "Shortcut to open", "Works everywhere, even in other apps", "Change", "Press your shortcut now...", "That shortcut is taken. Choose another one.", "Step for + and −", "How much time each press adds or removes", "Warning beforehand", "A notice before the timer runs out", "Off",
+                "Short pause for Now", "5 seconds to cancel with Esc", "On", "Off", "Version {0}", "Dusk shuts down, sleeps or restarts your PC. With a shortcut and your arrow keys, and a timer if you like.", "Open log", "View on GitHub", "Works fully offline. Nothing is sent to the internet.");
+
+            Add("es",
+                "Suspender", "Hibernar", "Reiniciar", "Apagar", "Bloquear", "Cerrar sesión",
+                "Suspender ahora", "Hibernar ahora", "Reiniciar ahora", "Apagar ahora", "Bloquear ahora", "Cerrar sesión ahora",
+                "en {0}", "a las {0}", "Cuándo", "Ahora", "h", "Escribe minutos o una hora, como 23:30", "Desactivado en Windows",
+                "Cancelar", "Hacerlo ya", "+{0} min", "Guarda tu trabajo.", "Pulsa Esc para detener", "a las {0}",
+                "Abrir", "Cancelar temporizador", "+{0} minutos", "Configuración", "Salir de Dusk", "Tu temporizador se detuvo porque el PC estaba suspendido.", "El atajo {0} estaba ocupado, Dusk usa ahora {1}.",
+                "La suspensión no está disponible en este PC.", "La hibernación está desactivada en Windows.", "Windows no permite apagar.", "No ha funcionado. Inténtalo de nuevo.",
+                "Configuración", "General", "Apariencia", "Atajo y temporizador", "Acerca de",
+                "Idioma", "Iniciar con Windows", "Espera en la barra de tareas, casi no usa memoria", "Forzar apagado", "No esperar a las aplicaciones que quieren guardar", "Mostrar bloquear y cerrar sesión", "Dos opciones más en el menú", "Seleccionado por defecto", "Esta opción está lista al abrir Dusk",
+                "Claro u oscuro", "Sistema", "Claro", "Oscuro", "sigue a Windows",
+                "Fondo", "Mica", "color de tu escritorio", "Liso", "gris fijo", "Atardecer", "de noche a brillo",
+                "Color de acento", "Lila", "Melocotón", "Rosa", "Azul", "Windows",
+                "Atajo para abrir", "Funciona en todas partes", "Cambiar", "Pulsa ahora tu atajo...", "Ese atajo está ocupado. Elige otro.", "Paso para + y −", "Cuánto tiempo suma o resta cada pulsación", "Aviso previo", "Un aviso antes de que acabe el temporizador", "No",
+                "Pausa breve con Ahora", "5 segundos para cancelar con Esc", "Sí", "No", "Versión {0}", "Dusk apaga, suspende o reinicia tu PC. Con un atajo y las flechas, y un temporizador si quieres.", "Abrir registro", "Ver en GitHub", "Funciona sin conexión. No se envía nada a internet.");
+
+            Add("fr",
+                "Veille", "Veille prolongée", "Redémarrer", "Éteindre", "Verrouiller", "Se déconnecter",
+                "Mettre en veille", "Veille prolongée maintenant", "Redémarrer maintenant", "Éteindre maintenant", "Verrouiller maintenant", "Se déconnecter maintenant",
+                "dans {0}", "à {0}", "Quand", "Maintenant", "h", "Tapez des minutes ou une heure, comme 23:30", "Désactivé dans Windows",
+                "Annuler", "Maintenant", "+{0} min", "Enregistrez votre travail.", "Appuyez sur Échap pour arrêter", "à {0}",
+                "Ouvrir", "Annuler la minuterie", "+{0} minutes", "Paramètres", "Quitter Dusk", "Votre minuterie a été arrêtée car le PC était en veille.", "Le raccourci {0} était pris, Dusk utilise maintenant {1}.",
+                "La veille n'est pas disponible sur ce PC.", "La veille prolongée est désactivée dans Windows.", "Windows n'autorise pas l'arrêt.", "Cela n'a pas fonctionné. Réessayez.",
+                "Paramètres", "Général", "Apparence", "Raccourci et minuterie", "À propos",
+                "Langue", "Démarrer avec Windows", "Attend dans la barre des tâches, presque sans mémoire", "Forcer l'arrêt", "Ne pas attendre les applications qui veulent enregistrer", "Afficher verrouiller et déconnexion", "Deux options de plus dans le menu", "Sélectionné par défaut", "Cette option est prête à l'ouverture de Dusk",
+                "Clair ou sombre", "Système", "Clair", "Sombre", "suit Windows",
+                "Arrière-plan", "Mica", "couleur de votre bureau", "Uni", "gris fixe", "Crépuscule", "de la nuit à la lueur",
+                "Couleur d'accent", "Lilas", "Pêche", "Rose", "Bleu", "Windows",
+                "Raccourci pour ouvrir", "Fonctionne partout", "Modifier", "Appuyez sur votre raccourci...", "Ce raccourci est déjà pris. Choisissez-en un autre.", "Pas pour + et −", "Le temps ajouté ou retiré à chaque appui", "Avertissement", "Un avis avant la fin de la minuterie", "Non",
+                "Petite pause avec Maintenant", "5 secondes pour annuler avec Échap", "Oui", "Non", "Version {0}", "Dusk éteint, met en veille ou redémarre votre PC. Avec un raccourci et les flèches, et une minuterie si vous voulez.", "Ouvrir le journal", "Voir sur GitHub", "Fonctionne hors ligne. Rien n'est envoyé sur internet.");
+        }
+
+        public static string ActionName(PowerAction a)
+        {
+            return T("act." + Key(a));
+        }
+
+        public static string Key(PowerAction a)
+        {
+            switch (a)
+            {
+                case PowerAction.Sleep: return "sleep";
+                case PowerAction.Hibernate: return "hibernate";
+                case PowerAction.Restart: return "restart";
+                case PowerAction.Lock: return "lock";
+                case PowerAction.Logoff: return "logoff";
+                default: return "shutdown";
+            }
+        }
+
+        // "Nu afsluiten", "Afsluiten over 30 min", "Afsluiten om 23:30"
+        public static string Phrase(PowerAction a, TimeChoice t)
+        {
+            if (t.IsNow) return T("now." + Key(a));
+            string when = t.IsClock ? F("at", TimeInput.Label(t)) : F("in", TimeInput.Label(t));
+            return ActionName(a) + " " + when;
+        }
+    }
+}

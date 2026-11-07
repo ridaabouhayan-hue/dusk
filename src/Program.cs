@@ -1,0 +1,216 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Threading;
+using System.Windows.Forms;
+
+[assembly: System.Reflection.AssemblyTitle("Dusk")]
+[assembly: System.Reflection.AssemblyProduct("Dusk")]
+[assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
+[assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
+[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.0.0.0")]
+
+namespace Dusk
+{
+    static class Program
+    {
+        public const string Version = "1.0.0";
+        public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
+        public static bool SelfTest;
+
+        [STAThread]
+        static int Main(string[] args)
+        {
+            SelfTest = Array.IndexOf(args, "--zelftest") >= 0;
+            if (SelfTest) return SelfTestRun(args);
+
+            bool startup = Array.IndexOf(args, "--opstarten") >= 0;
+            bool created;
+            using (Mutex m = new Mutex(true, "Dusk_EenKeerStarten", out created))
+            {
+                if (!created)
+                {
+                    // Dusk draait al: dat exemplaar het venster laten tonen en zelf stoppen
+                    if (App.ShowMessageId != 0) W.PostMessage(W.HWND_BROADCAST, App.ShowMessageId, IntPtr.Zero, IntPtr.Zero);
+                    return 0;
+                }
+                SetDpiAwareness();
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Log.Error("Onverwachte fout", e.Exception); };
+                AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Log.Error("Fatale fout", e.ExceptionObject as Exception); };
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Settings.Load();
+                Log.Info("Start Dusk " + Version + " op " + Environment.OSVersion + (startup ? " (met Windows)" : ""));
+                Application.Run(new App(startup));
+                return 0;
+            }
+        }
+
+        static void SetDpiAwareness()
+        {
+            try { W.SetProcessDpiAwarenessContext(new IntPtr(-4)); return; } catch (EntryPointNotFoundException) { }
+            try { W.SetProcessDpiAwareness(2); return; } catch (EntryPointNotFoundException) { } catch (DllNotFoundException) { }
+            try { W.SetProcessDPIAware(); } catch { }
+        }
+
+        // ---------------------------------------------------------------- zelftest
+        // Tekent alle schermen naar plaatjes in out\schermen, zodat ze in GitHub te bekijken zijn,
+        // en controleert of er onderweg niets misgaat.
+        static int errors;
+
+        static int SelfTestRun(string[] args)
+        {
+            string dir = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Application.ExecutablePath)), "schermen");
+            for (int i = 0; i < args.Length - 1; i++) if (args[i] == "--map") dir = args[i + 1];
+            Directory.CreateDirectory(dir);
+            Settings.FilePath = Path.Combine(Path.GetTempPath(), "dusk-zelftest-instellingen.txt");
+            Wallpaper.Override = TestWallpaper();
+            Settings.Current = new Settings();
+            Settings.Current.Language = "nl";
+            App app = new App();
+            Flyout fl = app.Flyout;
+            Rectangle at = new Rectangle(1300, 420, 352, 420);
+
+            Shot(dir, "01-kiezen-donker-mica", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "02-kiezen-licht-mica", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(30), false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "03-kiezen-donker-schemer", true, "dusk", "perzik", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.At(23, 30), false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "04-kiezen-licht-effen", false, "solid", "blauw", delegate { fl.TestSet(Flyout.View.Choose, 2, TimeChoice.After(90), false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "05-typen-in-tijdvak", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, true, "23:3", null, false); return Compose(fl, at); });
+            Shot(dir, "06-foutmelding", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 1, TimeChoice.Now, false, null, Lang.T("err.hibernate"), true); return Compose(fl, at); });
+            Shot(dir, "07-zes-opties", true, "mica", "roze", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 4, TimeChoice.Now, false, null, null, false); Bitmap b = Compose(fl, at); Settings.Current.ShowLockLogoff = false; return b; });
+
+            app.Scheduler.Start(PowerAction.Shutdown, DateTime.Now.AddMinutes(24).AddSeconds(12));
+            Shot(dir, "08-timer-loopt", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "09-timer-licht", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            app.Scheduler.Cancel();
+            Settings.Current.WarnMinutes = 1;
+            app.Scheduler.Start(PowerAction.Sleep, DateTime.Now.AddSeconds(58));
+            Shot(dir, "10-waarschuwing", true, "mica", "lila", delegate { app.Scheduler.OnTick(); fl.TestSet(Flyout.View.Running, 0, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            app.Scheduler.Cancel();
+            Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+
+            Settings.Current.Language = "en";
+            Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), false, null, null, false); return Compose(fl, at); });
+            Settings.Current.Language = "fr";
+            Shot(dir, "13-frans", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Settings.Current.Language = "es";
+            Shot(dir, "14-spaans", true, "dusk", "lila", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Settings.Current.Language = "nl";
+
+            for (int page = 0; page < 4; page++)
+            {
+                int pg = page;
+                Shot(dir, "2" + page + "-instellingen-" + page, true, "mica", "lila", delegate { return SettingsShot(app, pg); });
+            }
+            Shot(dir, "24-instellingen-uiterlijk-licht", false, "mica", "lila", delegate { return SettingsShot(app, 1); });
+            Shot(dir, "25-instellingen-schemer", true, "dusk", "perzik", delegate { return SettingsShot(app, 2); });
+
+            // taakbalkicoontjes
+            Shot(dir, "30-icoontjes", true, "solid", "lila", delegate { return Icons(); });
+
+            Console.WriteLine(errors == 0 ? "Zelftest geslaagd" : "Zelftest: " + errors + " fout(en)");
+            return errors == 0 ? 0 : 1;
+        }
+
+        delegate Bitmap Maker();
+
+        static void Shot(string dir, string name, bool dark, string backdrop, string accent, Maker make)
+        {
+            try
+            {
+                Palette.ForceDark = dark;
+                Settings.Current.Backdrop = backdrop;
+                Settings.Current.Accent = accent;
+                using (Bitmap b = make()) b.Save(Path.Combine(dir, name + ".png"), ImageFormat.Png);
+                Console.WriteLine("ok   " + name);
+            }
+            catch (Exception e)
+            {
+                errors++;
+                Console.Error.WriteLine("FOUT " + name + ": " + e);
+            }
+        }
+
+        // Het venster op een stukje bureaublad, zodat je de schaduw en Mica ziet
+        static Bitmap Compose(Flyout fl, Rectangle at)
+        {
+            using (Bitmap win = fl.Draw(1f, at))
+            {
+                int pad = 40;
+                Bitmap b = new Bitmap(win.Width + 2 * pad, win.Height + 2 * pad, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(b))
+                {
+                    g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                    Rectangle wall = new Rectangle(at.X - pad - 18, at.Y - pad - 18, b.Width, b.Height);
+                    g.DrawImage(Wallpaper.Override, new Rectangle(0, 0, b.Width, b.Height), wall, GraphicsUnit.Pixel);
+                    g.DrawImage(win, pad, pad);
+                }
+                return b;
+            }
+        }
+
+        static Bitmap SettingsShot(App app, int page)
+        {
+            using (SettingsForm f = new SettingsForm(app))
+            {
+                f.Page = page;
+                Bitmap b = new Bitmap(f.ClientSize.Width, f.ClientSize.Height, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(b)) f.PaintAll(g, new Rectangle(500, 200, b.Width, b.Height));
+                return b;
+            }
+        }
+
+        static Bitmap Icons()
+        {
+            int[] sizes = { 16, 20, 24, 32, 48 };
+            Bitmap b = new Bitmap(420, 140, PixelFormat.Format32bppArgb);
+            using (Graphics g = Graphics.FromImage(b))
+            {
+                using (SolidBrush dark = new SolidBrush(Color.FromArgb(28, 28, 30))) g.FillRectangle(dark, 0, 0, 420, 70);
+                using (SolidBrush light = new SolidBrush(Color.FromArgb(238, 238, 238))) g.FillRectangle(light, 0, 70, 420, 70);
+                int x = 10;
+                foreach (int sz in sizes)
+                {
+                    using (Bitmap i1 = Tray.Render(sz, 1f, true)) g.DrawImage(i1, x, 10);
+                    using (Bitmap i2 = Tray.Render(sz, 0.55f, true)) g.DrawImage(i2, x + 36, 10 + 0);
+                    using (Bitmap i3 = Tray.Render(sz, 1f, false)) g.DrawImage(i3, x, 80);
+                    using (Bitmap i4 = Tray.Render(sz, 0.55f, false)) g.DrawImage(i4, x + 36, 80);
+                    x += 82;
+                }
+            }
+            return b;
+        }
+
+        // Een kleurrijke achtergrond zoals de standaard van Windows 11, voor de schermafbeeldingen
+        static Bitmap TestWallpaper()
+        {
+            Bitmap b = new Bitmap(1920, 1080, PixelFormat.Format32bppArgb);
+            using (Graphics g = Graphics.FromImage(b))
+            {
+                g.Clear(Color.FromArgb(11, 16, 38));
+                Blob(g, new PointF(1380, 670), 820, Color.FromArgb(59, 91, 219));
+                Blob(g, new PointF(540, 410), 700, Color.FromArgb(112, 72, 232));
+                Blob(g, new PointF(1700, 300), 500, Color.FromArgb(14, 165, 233));
+            }
+            return b;
+        }
+
+        static void Blob(Graphics g, PointF c, float r, Color col)
+        {
+            using (GraphicsPath p = new GraphicsPath())
+            {
+                p.AddEllipse(c.X - r, c.Y - r, 2 * r, 2 * r);
+                using (PathGradientBrush br = new PathGradientBrush(p))
+                {
+                    br.CenterColor = col;
+                    br.SurroundColors = new[] { Color.FromArgb(0, col) };
+                    g.FillPath(br, p);
+                }
+            }
+        }
+    }
+}
