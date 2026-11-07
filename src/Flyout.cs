@@ -349,12 +349,12 @@ namespace Dusk
                 float kw = showEnter ? Ui.Width(g, "Enter", fk) + S(12) : 0;
                 float gap = showEnter ? S(10) : 0;
                 float x0 = r.X + (r.Width - (tw + gap + kw)) / 2;
-                Ui.Text(g, label, f, p.OnAccent, new RectangleF(x0 - S(2), r.Y, tw + S(4), r.Height), 0);
+                Ui.TextAt(g, label, f, p.OnAccent, x0, r);
                 if (showEnter)
                 {
                     RectangleF k = new RectangleF(x0 + tw + gap, r.Y + r.Height / 2 - S(10), kw, S(20));
                     Ui.Fill(g, k, S(4), Color.FromArgb(30, p.OnAccent));
-                    Ui.Text(g, "Enter", fk, p.OnAccent, k, 0);
+                    Ui.TextAt(g, "Enter", fk, p.OnAccent, k.X + S(6), k);
                 }
             }
             Zone(r, id);

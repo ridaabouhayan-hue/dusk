@@ -89,9 +89,27 @@ namespace Dusk
             }
         }
 
+        // Tekst precies vanaf x, zonder de extra ruimte die DrawString normaal links en rechts neemt.
+        // Hoort bij Width(): samen meten en tekenen ze hetzelfde (anders valt tekst op Windows weg achter "...").
+        static readonly StringFormat Tight = MakeTight();
+
+        static StringFormat MakeTight()
+        {
+            StringFormat f = (StringFormat)StringFormat.GenericTypographic.Clone();
+            f.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.MeasureTrailingSpaces;
+            f.LineAlignment = StringAlignment.Center;
+            f.Trimming = StringTrimming.None;
+            return f;
+        }
+
+        public static void TextAt(Graphics g, string s, Font f, Color c, float x, RectangleF row)
+        {
+            using (SolidBrush b = new SolidBrush(c)) g.DrawString(s, f, b, new RectangleF(x, row.Y, 10000, row.Height), Tight);
+        }
+
         public static float Width(Graphics g, string s, Font f)
         {
-            return g.MeasureString(s, f, 10000, StringFormat.GenericTypographic).Width;
+            return g.MeasureString(s, f, 10000, Tight).Width;
         }
 
         // Toetsje met een cijfer of letter erin

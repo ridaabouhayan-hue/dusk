@@ -1,4 +1,4 @@
-Eerste versie van Dusk.
+Dusk 1.0.1. Verbeterd ten opzichte van 1.0.0: de tekst op de knoppen viel op Windows soms weg achter puntjes.
 
 **Installeren:** download `Dusk-Setup.exe` hieronder en open het. Er zijn geen beheerdersrechten nodig. Wil je niets installeren, dan kan `Dusk.exe` ook los.
 
