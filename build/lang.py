@@ -68,7 +68,7 @@ T = [
 ("open.tray","Bij de taakbalk","By the taskbar","Junto a la barra","Près de la barre"),
 ("open.center","In het midden","In the middle","En el centro","Au centre"),
 ("open.last","Waar ik hem neerzet","Where I put it","Donde lo dejé","Là où je la place"),
-("open.smart.d","Bij de taakbalk als je op het icoon klikt, anders in het midden","By the taskbar when you click the icon, otherwise in the middle","Junto a la barra al pulsar el icono, si no en el centro","Près de la barre en cliquant l'icône, sinon au centre"),
+("open.smart.d","Bij de taakbalk via het icoon, anders in het midden","By the taskbar from the icon, otherwise centered","Junto a la barra desde el icono, si no centrado","Près de la barre via l'icône, sinon au centre"),
 ("set.theme","Licht of donker","Light or dark","Claro u oscuro","Clair ou sombre"),
 ("theme.system","Systeem","System","Sistema","Système"),
 ("theme.light","Licht","Light","Claro","Clair"),

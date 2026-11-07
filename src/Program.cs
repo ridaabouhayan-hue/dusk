@@ -10,14 +10,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.2.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.1.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.2.0";
+        public const string Version = "1.2.1";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -94,6 +94,7 @@ namespace Dusk
             app.Scheduler.Cancel();
             Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
 
+            Shot(dir, "15-kiezen-150-procent", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at, 1.5f); });
             Settings.Current.Language = "en";
             Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), null, false); return Compose(fl, at); });
             Settings.Current.Language = "fr";
@@ -137,9 +138,11 @@ namespace Dusk
         }
 
         // Het venster op een stukje bureaublad, zodat je de schaduw en Mica ziet
-        static Bitmap Compose(Flyout fl, Rectangle at)
+        static Bitmap Compose(Flyout fl, Rectangle at) { return Compose(fl, at, 1f); }
+
+        static Bitmap Compose(Flyout fl, Rectangle at, float scale)
         {
-            using (Bitmap win = fl.Draw(1f, at))
+            using (Bitmap win = fl.Draw(scale, at))
             {
                 int pad = 40;
                 Bitmap b = new Bitmap(win.Width + 2 * pad, win.Height + 2 * pad, PixelFormat.Format32bppArgb);
@@ -159,7 +162,7 @@ namespace Dusk
             using (SettingsForm f = new SettingsForm(app))
             {
                 f.Page = page;
-                Bitmap b = new Bitmap(f.ClientSize.Width, f.ClientSize.Height, PixelFormat.Format32bppArgb);
+                Bitmap b = new Bitmap(f.ClientSize.Width, f.ClientSize.Height, PixelFormat.Format32bppRgb);
                 using (Graphics g = Graphics.FromImage(b)) f.PaintAll(g, new Rectangle(500, 200, b.Width, b.Height));
                 return b;
             }

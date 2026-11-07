@@ -12,6 +12,11 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.2.1", "8 november 2026",
+                L("Tekst wordt nu door Windows zelf gezet: even scherp als in Verkenner, ook in Instellingen", "Text is now drawn by Windows itself: as sharp as in File Explorer, also in Settings"),
+                L("Mica toont alleen nog de kleur van je bureaublad, geen vreemde vormen meer", "Mica now only shows the colour of your desktop, no more odd shapes"),
+                L("Effen bureaubladkleur of Windows Spotlight: geen oude achtergrondfoto meer", "Solid desktop colour or Windows Spotlight: no more old wallpaper photo"),
+                L("Halfvette koppen, zoals in Windows 11", "Semibold headings, like Windows 11")),
             V("1.2.0", "7 november 2026",
                 L("Scherpere en iets grotere tekst, net als in Windows zelf", "Sharper, slightly larger text, like Windows itself"),
                 L("Gladde maan bij Slaapstand", "Smooth moon icon for Sleep"),

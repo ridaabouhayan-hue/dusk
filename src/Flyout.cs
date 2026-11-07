@@ -198,20 +198,25 @@ namespace Dusk
                 RectangleF panel = new RectangleF(m, m, pw, ph);
                 float rad = 12 * s;
                 Ui.Shadow(g, panel, rad, s, p.Dark);
-                using (GraphicsPath clip = Ui.Round(panel, rad))
+                g.Flush();
+                // De inhoud eerst op een dichte laag: daar kan Windows de tekst zo scherp zetten als in Verkenner
+                using (Bitmap inner = new Bitmap(pw, ph, PixelFormat.Format32bppRgb))
                 {
-                    GraphicsState st = g.Save();
-                    g.SetClip(clip);
-                    p.PaintBackdrop(g, Rectangle.Round(panel), onScreen, Settings.Current.Backdrop);
-                    g.TranslateTransform(m, m);
-                    switch (Mode)
+                    using (Graphics gi = Graphics.FromImage(inner))
                     {
-                        case View.Running: DrawRunning(g, p); break;
-                        case View.Undo: DrawUndo(g, p); break;
-                        case View.Picker: DrawPicker(g, p); break;
-                        default: DrawChoose(g, p); break;
+                        Ui.Setup(gi);
+                        string mode = Settings.Current.Backdrop;
+                        p.PaintBackdrop(gi, new Rectangle(0, 0, pw, ph), onScreen, mode);
+                        Ui.Back = p.TextBack(mode);
+                        switch (Mode)
+                        {
+                            case View.Running: DrawRunning(gi, p); break;
+                            case View.Undo: DrawUndo(gi, p); break;
+                            case View.Picker: DrawPicker(gi, p); break;
+                            default: DrawChoose(gi, p); break;
+                        }
                     }
-                    g.Restore(st);
+                    Ui.PutRounded(bmp, inner, m, m, rad);
                 }
                 Ui.Stroke(g, panel, rad, p.Border, Math.Max(1f, s));
             }

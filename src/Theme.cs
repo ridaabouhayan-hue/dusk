@@ -103,6 +103,14 @@ namespace Dusk
             return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0;
         }
 
+        // De kleur waar de tekst ongeveer op staat (nodig om halfdoorzichtige tekst te mengen)
+        public Color TextBack(string mode)
+        {
+            if (mode == "dusk") return Dark ? Color.FromArgb(25, 23, 36) : Color.FromArgb(246, 244, 250);
+            if (mode == "mica") return Dark ? Color.FromArgb(32, 32, 36) : Color.FromArgb(240, 240, 243);
+            return Solid;
+        }
+
         // ---------------------------------------------------------------- achtergrond van het venster
         // panel: het vlak in het venster; onScreen: waar dat vlak op het scherm staat (voor Mica)
         public void PaintBackdrop(Graphics g, Rectangle panel, Rectangle onScreen, string mode)
@@ -128,15 +136,18 @@ namespace Dusk
                 if (blur != null)
                 {
                     InterpolationMode old = g.InterpolationMode;
-                    g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                    PixelOffsetMode oldp = g.PixelOffsetMode;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
                     using (ImageAttributes ia = new ImageAttributes())
                     {
                         ia.SetWrapMode(WrapMode.TileFlipXY);   // geen donkere randjes bij het opschalen
                         g.DrawImage(blur, panel, 0, 0, blur.Width, blur.Height, GraphicsUnit.Pixel, ia);
                     }
                     g.InterpolationMode = old;
-                    // De tint van Mica: het bureaublad schemert er zacht doorheen
-                    using (SolidBrush tint = new SolidBrush(Dark ? Color.FromArgb(214, 30, 30, 34) : Color.FromArgb(206, 243, 243, 245)))
+                    g.PixelOffsetMode = oldp;
+                    // De tint van Mica: alleen de kleur van het bureaublad schemert er zacht doorheen, geen vormen
+                    using (SolidBrush tint = new SolidBrush(Dark ? Color.FromArgb(222, 32, 32, 36) : Color.FromArgb(212, 240, 240, 243)))
                         g.FillRectangle(tint, panel);
                     return;
                 }
@@ -145,102 +156,209 @@ namespace Dusk
         }
     }
 
-    // Je bureaubladachtergrond, verkleind en vervaagd, voor het Mica-effect.
+    // Je bureaubladachtergrond, heel sterk vervaagd, voor het Mica-effect.
+    // Net als bij Windows zie je alleen nog de kleuren van je achtergrond, geen vormen.
     static class Wallpaper
     {
-        static Bitmap source;          // verkleinde kopie van de achtergrond
-        static string sourceKey;
-        static Bitmap lastBlur;
+        static Bitmap screenBlur;      // het hele scherm, klein en vervaagd
+        static string blurKey;
+        static Bitmap lastCrop;
         static Rectangle lastRect;
+        static string lastKey;
+        static DateTime checkedAt;
+        static string stateCache;
 
         // Voor de zelftest: een vaste achtergrond in plaats van die van de pc
         public static Bitmap Override;
 
-        static string FilePath()
+        // Wat voor achtergrond je in Windows hebt: een foto (pad), een effen kleur, of iets wat we niet kunnen lezen
+        public static string State()
         {
-            string t = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Windows\Themes\TranscodedWallpaper");
-            if (File.Exists(t)) return t;
-            try
-            {
-                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop"))
-                {
-                    string p = k != null ? k.GetValue("WallPaper") as string : null;
-                    if (!string.IsNullOrEmpty(p) && File.Exists(p)) return p;
-                }
-            }
-            catch { }
-            return null;
+            if (Override != null) return "test";
+            if (stateCache != null && (DateTime.UtcNow - checkedAt).TotalSeconds < 2) return stateCache;
+            checkedAt = DateTime.UtcNow;
+            stateCache = ReadState();
+            return stateCache;
         }
 
-        static Bitmap Source()
+        static string ReadState()
         {
-            if (Override != null) return Override;
-            string f = FilePath();
-            if (f == null) return null;
-            string key;
-            try { key = f + "|" + File.GetLastWriteTimeUtc(f).Ticks; } catch { return null; }
-            if (key == sourceKey) return source;
             try
             {
-                // Lezen via een kopie in het geheugen, zodat het bestand niet op slot blijft staan
-                byte[] bytes = File.ReadAllBytes(f);
-                using (MemoryStream ms = new MemoryStream(bytes))
-                using (Image img = Image.FromStream(ms))
+                int type = 0;
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers"))
                 {
-                    // Klein houden: 480 punten breed is ruim genoeg voor een vervaagde achtergrond
-                    int w = Math.Min(480, img.Width), h = Math.Max(1, (int)Math.Round(img.Height * (w / (double)img.Width)));
-                    Bitmap small = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    using (Graphics g = Graphics.FromImage(small))
-                    {
-                        g.InterpolationMode = InterpolationMode.HighQualityBilinear;
-                        g.DrawImage(img, 0, 0, w, h);
-                    }
-                    if (source != null) source.Dispose();
-                    source = small;
-                    sourceKey = key;
-                    lastRect = Rectangle.Empty;
+                    object v = k != null ? k.GetValue("BackgroundType") : null;
+                    if (v is int) type = (int)v;
                 }
+                string wp = null;
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop"))
+                    wp = k != null ? k.GetValue("WallPaper") as string : null;
+                // 1 = effen kleur; een leeg pad betekent ook geen foto
+                if (type == 1 || (type == 0 && string.IsNullOrEmpty(wp))) return "color:" + SolidColor().ToArgb();
+                // 3 = Windows Spotlight: dat plaatje staat niet op een vaste plek, dus geen oude foto tonen
+                if (type == 3) return "none";
+                string t = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Windows\Themes\TranscodedWallpaper");
+                string f = File.Exists(t) ? t : (!string.IsNullOrEmpty(wp) && File.Exists(wp) ? wp : null);
+                if (f == null) return "none";
+                return "file:" + f + "|" + File.GetLastWriteTimeUtc(f).Ticks;
             }
             catch (Exception e)
             {
-                Log.Error("Achtergrond lezen mislukt", e);
-                sourceKey = key; source = null;
+                Log.Error("Achtergrond bepalen mislukt", e);
+                return "none";
             }
-            return source;
         }
 
-        // Het stukje achtergrond achter het venster, sterk vervaagd (zoals Windows 'vullen' het neerzet)
+        static Color SolidColor()
+        {
+            try
+            {
+                using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Control Panel\Colors"))
+                {
+                    string v = k != null ? k.GetValue("Background") as string : null;
+                    if (v != null)
+                    {
+                        string[] parts = v.Split(' ');
+                        if (parts.Length == 3) return Color.FromArgb(int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]));
+                    }
+                }
+            }
+            catch { }
+            return Color.Black;
+        }
+
+        // Het hele scherm met je achtergrond erop ("vullen"), heel klein en daarna nog eens vervaagd
+        static Bitmap ScreenBlur(Rectangle scr, string state)
+        {
+            string key = state + "|" + scr.Width + "x" + scr.Height;
+            if (key == blurKey) return screenBlur;
+            Bitmap result = null;
+            if (state.StartsWith("color:"))
+            {
+                result = new Bitmap(2, 2, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(result)) g.Clear(Color.FromArgb(int.Parse(state.Substring(6))));
+            }
+            else if (state == "test" || state.StartsWith("file:"))
+            {
+                try
+                {
+                    Image img;
+                    if (state == "test") img = (Image)Override.Clone();
+                    else
+                    {
+                        string f = state.Substring(5, state.LastIndexOf('|') - 5);
+                        // Lezen via een kopie in het geheugen, zodat het bestand niet op slot blijft staan
+                        img = Image.FromStream(new MemoryStream(File.ReadAllBytes(f)));
+                    }
+                    using (img)
+                    {
+                        int bw = 48, bh = Math.Max(2, (int)Math.Round(48.0 * scr.Height / scr.Width));
+                        result = new Bitmap(bw, bh, PixelFormat.Format32bppArgb);
+                        double scale = Math.Max(scr.Width / (double)img.Width, scr.Height / (double)img.Height);
+                        double cw = scr.Width / scale, ch = scr.Height / scale;
+                        RectangleF src = new RectangleF((float)((img.Width - cw) / 2), (float)((img.Height - ch) / 2), (float)cw, (float)ch);
+                        using (Graphics g = Graphics.FromImage(result))
+                        {
+                            g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                            using (ImageAttributes ia = new ImageAttributes())
+                            {
+                                ia.SetWrapMode(WrapMode.TileFlipXY);
+                                g.DrawImage(img, new Rectangle(0, 0, bw, bh), src.X, src.Y, src.Width, src.Height, GraphicsUnit.Pixel, ia);
+                            }
+                        }
+                        BoxBlur(result, 3);
+                        BoxBlur(result, 3);
+                        BoxBlur(result, 3);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error("Achtergrond lezen mislukt", e);
+                    if (result != null) result.Dispose();
+                    result = null;
+                }
+            }
+            if (screenBlur != null) screenBlur.Dispose();
+            screenBlur = result;
+            blurKey = key;
+            lastRect = Rectangle.Empty;
+            return screenBlur;
+        }
+
+        // Eenvoudige vervaging: elke pixel wordt het gemiddelde van zijn buren (drie keer = bijna Gauss)
+        public static void BoxBlur(Bitmap b, int r)
+        {
+            int w = b.Width, h = b.Height;
+            Rectangle all = new Rectangle(0, 0, w, h);
+            BitmapData d = b.LockBits(all, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            int[] px = new int[w * h];
+            try
+            {
+                for (int y = 0; y < h; y++) System.Runtime.InteropServices.Marshal.Copy(new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), px, y * w, w);
+                int[] tmp = new int[w * h];
+                Pass(px, tmp, w, h, r, true);
+                Pass(tmp, px, w, h, r, false);
+                for (int y = 0; y < h; y++) System.Runtime.InteropServices.Marshal.Copy(px, y * w, new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), w);
+            }
+            finally { b.UnlockBits(d); }
+        }
+
+        static void Pass(int[] src, int[] dst, int w, int h, int r, bool horizontal)
+        {
+            int n = horizontal ? w : h, lines = horizontal ? h : w;
+            for (int line = 0; line < lines; line++)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    int sa = 0, sr = 0, sg = 0, sb = 0, cnt = 0;
+                    for (int k = -r; k <= r; k++)
+                    {
+                        int j = Math.Max(0, Math.Min(n - 1, i + k));
+                        int c = horizontal ? src[line * w + j] : src[j * w + line];
+                        sa += (c >> 24) & 255; sr += (c >> 16) & 255; sg += (c >> 8) & 255; sb += c & 255; cnt++;
+                    }
+                    int v = ((sa / cnt) << 24) | ((sr / cnt) << 16) | ((sg / cnt) << 8) | (sb / cnt);
+                    if (horizontal) dst[line * w + i] = v; else dst[i * w + line] = v;
+                }
+            }
+        }
+
+        // Het stukje vervaagde achtergrond achter het venster
         public static Bitmap BlurredCrop(Rectangle onScreen)
         {
-            Bitmap src = Source();
-            if (src == null) return null;
-            if (lastBlur != null && lastRect == onScreen) return lastBlur;
+            string state = State();
+            if (state == "none") return null;
             Rectangle scr;
             try { scr = System.Windows.Forms.Screen.FromRectangle(onScreen).Bounds; }
             catch { scr = new Rectangle(0, 0, 1920, 1080); }
             if (Override != null) scr = new Rectangle(0, 0, Override.Width, Override.Height);
-            // vullen: zo groot dat het hele scherm bedekt is, in het midden
-            double scale = Math.Max(scr.Width / (double)src.Width, scr.Height / (double)src.Height);
-            double offX = (scr.Width - src.Width * scale) / 2, offY = (scr.Height - src.Height * scale) / 2;
-            RectangleF crop = new RectangleF(
-                (float)((onScreen.X - scr.X - offX) / scale), (float)((onScreen.Y - scr.Y - offY) / scale),
-                (float)(onScreen.Width / scale), (float)(onScreen.Height / scale));
-            int bw = Math.Max(2, onScreen.Width / 28), bh = Math.Max(2, onScreen.Height / 28);
-            Bitmap blur = new Bitmap(bw, bh, PixelFormat.Format32bppArgb);
-            using (Graphics g = Graphics.FromImage(blur))
+            Bitmap sb = ScreenBlur(scr, state);
+            if (sb == null) return null;
+            string key = blurKey;
+            if (lastCrop != null && lastRect == onScreen && lastKey == key) return lastCrop;
+            double fx = sb.Width / (double)scr.Width, fy = sb.Height / (double)scr.Height;
+            RectangleF crop = new RectangleF((float)((onScreen.X - scr.X) * fx), (float)((onScreen.Y - scr.Y) * fy),
+                (float)(onScreen.Width * fx), (float)(onScreen.Height * fy));
+            // Op een tussenmaat uitsnijden; het venster schaalt dit daarna glad op
+            int cw = Math.Max(2, onScreen.Width / 8), ch = Math.Max(2, onScreen.Height / 8);
+            Bitmap c = new Bitmap(cw, ch, PixelFormat.Format32bppArgb);
+            using (Graphics g = Graphics.FromImage(c))
             {
-                g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
                 using (ImageAttributes ia = new ImageAttributes())
                 {
                     ia.SetWrapMode(WrapMode.TileFlipXY);
-                    g.DrawImage(src, new Rectangle(0, 0, bw, bh), crop.X, crop.Y, crop.Width, crop.Height, GraphicsUnit.Pixel, ia);
+                    g.DrawImage(sb, new Rectangle(0, 0, cw, ch), crop.X, crop.Y, crop.Width, crop.Height, GraphicsUnit.Pixel, ia);
                 }
             }
-            if (lastBlur != null) lastBlur.Dispose();
-            lastBlur = blur;
+            if (lastCrop != null) lastCrop.Dispose();
+            lastCrop = c;
             lastRect = onScreen;
-            return blur;
+            lastKey = key;
+            return c;
         }
     }
 }

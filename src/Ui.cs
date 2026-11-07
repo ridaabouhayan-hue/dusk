@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Windows.Forms;
 
 namespace Dusk
 {
     // Tekenhulpjes: lettertypes, afgeronde vlakken, icoontjes en het logo.
     static class Ui
     {
-        static string family, display;
+        static string family, display, familyBold, displayBold;
 
         public static string Family
         {
@@ -28,11 +29,16 @@ namespace Dusk
             catch { }
             family = have.Contains("Segoe UI Variable Text") ? "Segoe UI Variable Text" : have.Contains("Segoe UI") ? "Segoe UI" : FontFamily.GenericSansSerif.Name;
             display = have.Contains("Segoe UI Variable Display") ? "Segoe UI Variable Display" : family;
+            // Vet zoals Windows 11 het doet: halfvet (Semibold) als dat er is
+            familyBold = have.Contains(family + " Semibold") ? family + " Semibold" : null;
+            displayBold = have.Contains(display + " Semibold") ? display + " Semibold" : null;
         }
 
         public static Font F(float px, float s, bool bold)
         {
-            return new Font(Family, (px + Bump(px)) * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+            string fam = Family;
+            if (bold && familyBold != null) return new Font(familyBold, (px + Bump(px)) * s, FontStyle.Regular, GraphicsUnit.Pixel);
+            return new Font(fam, (px + Bump(px)) * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
         }
 
         // Kleine tekst een tikje groter, zodat alles goed leesbaar is (12 wordt 13, 14 wordt 15)
@@ -40,7 +46,9 @@ namespace Dusk
 
         public static Font Big(float px, float s)
         {
-            return new Font(Display, px * s, FontStyle.Bold, GraphicsUnit.Pixel);
+            string fam = Display;
+            if (displayBold != null) return new Font(displayBold, px * s, FontStyle.Regular, GraphicsUnit.Pixel);
+            return new Font(fam, px * s, FontStyle.Bold, GraphicsUnit.Pixel);
         }
 
         public static void Setup(Graphics g)
@@ -68,53 +76,107 @@ namespace Dusk
             using (GraphicsPath p = Round(rr, Math.Max(0, rad - w / 2))) using (Pen pen = new Pen(c, w)) g.DrawPath(pen, p);
         }
 
-        static readonly StringFormat LeftMid = Fmt(StringAlignment.Near), CenterMid = Fmt(StringAlignment.Center), RightMid = Fmt(StringAlignment.Far);
+        // Tekst tekenen we met de tekstmotor van Windows zelf (GDI, zoals Verkenner en Instellingen).
+        // Die zet de letters precies op de pixels en is daardoor veel scherper dan DrawString.
+        // GDI kent geen doorzichtige tekst: een halfdoorzichtige kleur mengen we vooraf met de achtergrond.
+        public static Color Back = Color.FromArgb(32, 32, 34);
 
-        static StringFormat Fmt(StringAlignment h)
+        public static Color Solid(Color c)
         {
-            StringFormat f = new StringFormat(StringFormatFlags.NoWrap);
-            f.Alignment = h; f.LineAlignment = StringAlignment.Center; f.Trimming = StringTrimming.EllipsisCharacter;
-            return f;
+            if (c.A == 255) return c;
+            float a = c.A / 255f;
+            return Color.FromArgb(255,
+                (int)Math.Round(c.R * a + Back.R * (1 - a)),
+                (int)Math.Round(c.G * a + Back.G * (1 - a)),
+                (int)Math.Round(c.B * a + Back.B * (1 - a)));
+        }
+
+        const TextFormatFlags Base = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
+            TextFormatFlags.VerticalCenter | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform;
+
+        static Rectangle Px(RectangleF r)
+        {
+            return Rectangle.FromLTRB((int)Math.Round(r.Left), (int)Math.Round(r.Top), (int)Math.Round(r.Right), (int)Math.Round(r.Bottom));
         }
 
         public static void Text(Graphics g, string s, Font f, Color c, RectangleF r, int align)
         {
-            using (SolidBrush b = new SolidBrush(c))
-                g.DrawString(s, f, b, r, align < 0 ? LeftMid : align == 0 ? CenterMid : RightMid);
+            TextFormatFlags fl = Base | TextFormatFlags.EndEllipsis |
+                (align < 0 ? TextFormatFlags.Left : align == 0 ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Right);
+            TextRenderer.DrawText(g, s, f, Px(r), Solid(c), fl);
         }
 
         // Tekst die over meerdere regels mag lopen (uitleg in Instellingen)
         public static void Wrap(Graphics g, string s, Font f, Color c, RectangleF r)
         {
-            using (SolidBrush b = new SolidBrush(c))
-            using (StringFormat sf = new StringFormat())
-            {
-                sf.Trimming = StringTrimming.EllipsisWord;
-                g.DrawString(s, f, b, r, sf);
-            }
+            TextFormatFlags fl = TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
+                TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform;
+            TextRenderer.DrawText(g, s, f, Px(r), Solid(c), fl);
         }
 
-        // Tekst precies vanaf x, zonder de extra ruimte die DrawString normaal links en rechts neemt.
-        // Hoort bij Width(): samen meten en tekenen ze hetzelfde (anders valt tekst op Windows weg achter "...").
-        static readonly StringFormat Tight = MakeTight();
-
-        static StringFormat MakeTight()
-        {
-            StringFormat f = (StringFormat)StringFormat.GenericTypographic.Clone();
-            f.FormatFlags |= StringFormatFlags.NoWrap | StringFormatFlags.MeasureTrailingSpaces;
-            f.LineAlignment = StringAlignment.Center;
-            f.Trimming = StringTrimming.None;
-            return f;
-        }
-
+        // Tekst precies vanaf x. Hoort bij Width(): samen meten en tekenen ze hetzelfde,
+        // zodat een knop altijd breed genoeg is voor zijn tekst.
         public static void TextAt(Graphics g, string s, Font f, Color c, float x, RectangleF row)
         {
-            using (SolidBrush b = new SolidBrush(c)) g.DrawString(s, f, b, new RectangleF(x, row.Y, 10000, row.Height), Tight);
+            TextRenderer.DrawText(g, s, f, Px(new RectangleF(x, row.Y, 10000, row.Height)), Solid(c), Base | TextFormatFlags.Left);
         }
 
         public static float Width(Graphics g, string s, Font f)
         {
-            return g.MeasureString(s, f, 10000, Tight).Width;
+            return TextRenderer.MeasureText(g, s, f, new Size(100000, 100000), TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
+        }
+
+        // Zet een dichte laag met afgeronde hoeken op het venster. De hoeken worden per pixel
+        // zacht gemaakt (randje half doorzichtig), de rest wordt pixel voor pixel gekopieerd, dus niets vervaagt.
+        public static void PutRounded(Bitmap dst, Bitmap src, int ox, int oy, float rad)
+        {
+            int w = src.Width, h = src.Height;
+            // het hele doelplaatje vastzetten (een stukje vastzetten gaat niet overal goed) en zelf verschuiven
+            System.Drawing.Imaging.BitmapData dd = dst.LockBits(new Rectangle(0, 0, dst.Width, dst.Height), System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            System.Drawing.Imaging.BitmapData sd = src.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            try
+            {
+                int[] drow = new int[w], srow = new int[w];
+                for (int y = 0; y < h; y++)
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(new IntPtr(dd.Scan0.ToInt64() + (long)(y + oy) * dd.Stride + ox * 4), drow, 0, w);
+                    System.Runtime.InteropServices.Marshal.Copy(new IntPtr(sd.Scan0.ToInt64() + (long)y * sd.Stride), srow, 0, w);
+                    for (int x = 0; x < w; x++)
+                    {
+                        float cov = Coverage(x + 0.5f, y + 0.5f, w, h, rad);
+                        int sc = srow[x] | unchecked((int)0xFF000000);
+                        if (cov >= 1f) { drow[x] = sc; continue; }
+                        if (cov <= 0f) continue;
+                        int dc = drow[x];
+                        float da = ((dc >> 24) & 255) / 255f;
+                        float oa = cov + da * (1 - cov);
+                        int r = Mix((sc >> 16) & 255, (dc >> 16) & 255, cov, da, oa);
+                        int gg = Mix((sc >> 8) & 255, (dc >> 8) & 255, cov, da, oa);
+                        int b = Mix(sc & 255, dc & 255, cov, da, oa);
+                        int a = (int)Math.Round(oa * 255);
+                        drow[x] = (a << 24) | (r << 16) | (gg << 8) | b;
+                    }
+                    System.Runtime.InteropServices.Marshal.Copy(drow, 0, new IntPtr(dd.Scan0.ToInt64() + (long)(y + oy) * dd.Stride + ox * 4), w);
+                }
+            }
+            finally { dst.UnlockBits(dd); src.UnlockBits(sd); }
+        }
+
+        static int Mix(int s, int d, float cov, float da, float oa)
+        {
+            if (oa <= 0) return 0;
+            return Math.Max(0, Math.Min(255, (int)Math.Round((s * cov + d * da * (1 - cov)) / oa)));
+        }
+
+        // Hoeveel van een pixel binnen een afgeronde rechthoek valt (0 tot 1)
+        public static float Coverage(float px, float py, int w, int h, float rad)
+        {
+            float cx = px < rad ? rad : px > w - rad ? w - rad : px;
+            float cy = py < rad ? rad : py > h - rad ? h - rad : py;
+            if (cx == px || cy == py) return 1f;
+            float dx = px - cx, dy = py - cy;
+            float d = (float)Math.Sqrt(dx * dx + dy * dy);
+            return Math.Max(0f, Math.Min(1f, rad - d + 0.5f));
         }
 
         // Toetsje met een cijfer of letter erin

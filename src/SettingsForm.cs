@@ -69,6 +69,7 @@ namespace Dusk
             hits.Clear();
             Rectangle all = new Rectangle(0, 0, (int)(LogicalW * s), (int)(LogicalH * s));
             p.PaintBackdrop(g, all, onScreen, Settings.Current.Backdrop);
+            Ui.Back = p.TextBack(Settings.Current.Backdrop);
 
             // links: logo en menu
             Ui.Logo(g, R(20, 18, 22, 22), p.Dark ? Color.FromArgb(224, 231, 255) : Color.FromArgb(55, 48, 163), 4.5f, 1f, Color.Empty);
