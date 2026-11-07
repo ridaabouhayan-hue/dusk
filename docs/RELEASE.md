@@ -1,9 +1,11 @@
-Dusk 1.2.2
+Dusk 1.3.0
 
-**Opgelost**
-- Bijwerken kon vastlopen: de vraag "Dusk bijwerken?" verscheen achter het Dusk-venster, en zolang die openstond zat Instellingen op slot. Die extra vraag is weg: de knop Nu bijwerken is de keuze.
-- Terwijl Instellingen open staat, staat het Dusk-venster niet meer altijd bovenop. Het hoort dan bij Instellingen: kies je een ander programma of minimaliseer je Instellingen, dan gaat het mee naar achteren of weg.
+**Nieuw**
+- Grootte kiezen bij Instellingen > Uiterlijk: klein, normaal, groot of extra groot. Het venster en Instellingen veranderen meteen mee. Dusk past zich daarnaast nog steeds vanzelf aan de schaal van je scherm aan.
+- Gebruik bijhouden (Instellingen > Over): Dusk telt op deze pc hoe vaak je iets gebruikt, zoals afsluiten, slaapstand, timers en vaste tijden, en houdt fouten bij in het logboek. Alles staat in de map die je opent met "Logboek en gebruik openen" (gebruik.txt en log.txt). Er gaat niets naar internet. Je kunt het uitzetten.
 
-**Ook in 1.2.1:** scherpere tekst via Windows zelf en een rustige Mica-achtergrond zonder vormen.
+**Verbeterd**
+- Nieuwe manier van tekst zetten, voor elk thema en elke kleur: scherp en zonder gekleurde randjes, ook in het lichte thema.
+- Instellingen is rustiger: alleen titels, de uitlegregels eronder zijn weg.
 
-**Bijwerken:** ga naar Instellingen > Bijwerken en klik op Nu bijwerken. Let op: je huidige versie stelt nog een keer de oude vraag. Zie je die niet, klik dan in het Dusk-venster op het streepje rechtsboven; dan komt de vraag tevoorschijn en klik je op Ja. Of download `Dusk-Setup.exe` hieronder en start die.
+**Bijwerken:** Instellingen > Bijwerken > Nu bijwerken. Heb je 1.2.1 of ouder, dan komt er nog een keer een vraag. Zie je die niet, klik dan in het Dusk-venster op het streepje rechtsboven en klik daarna op Ja.

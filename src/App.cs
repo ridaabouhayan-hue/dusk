@@ -116,6 +116,7 @@ namespace Dusk
                     try
                     {
                         Updates.WriteFlag(info.Version);
+                        Usage.Count("bijgewerkt");
                         System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo(file, "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCANCEL /BIJWERKEN");
                         psi.UseShellExecute = true;
                         System.Diagnostics.Process.Start(psi);
@@ -166,7 +167,7 @@ namespace Dusk
             if (Flyout.Visible && Form.ActiveForm == Flyout) Flyout.HideFlyout();
             // net verborgen omdat je op het icoon klikte: dan niet meteen weer openen
             else if ((DateTime.UtcNow - Flyout.LastAutoHide).TotalMilliseconds < 400) return;
-            else Flyout.ShowFlyout(true, origin);
+            else { Flyout.ShowFlyout(true, origin); Usage.Count("geopend." + origin.ToString().ToLowerInvariant()); }
         }
 
         public void OpenSettings() { OpenSettings(-1); }
@@ -178,6 +179,7 @@ namespace Dusk
             bool fresh = settings == null || settings.IsDisposed;
             if (fresh)
             {
+                Usage.Count("instellingen");
                 settings = new SettingsForm(this);
                 settings.FormClosing += delegate { Flyout.Standalone(); };
                 settings.FormClosed += delegate
@@ -199,7 +201,7 @@ namespace Dusk
 
         // Instellingen veranderd: alles opnieuw tekenen in de nieuwe taal, kleur of met de nieuwe sneltoets
         // Instellingen en het venster niet over elkaar heen: Instellingen schuift dan naar links
-        void KeepApart()
+        public void KeepApart()
         {
             try
             {
@@ -238,6 +240,7 @@ namespace Dusk
         public void Execute(PowerAction a, bool cancelTimer)
         {
             if (cancelTimer && Scheduler.Active) Scheduler.Cancel();
+            Usage.Count("actie." + a.ToString().ToLowerInvariant());
             Flyout.HideFlyout();
             System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
             t.Interval = 150;

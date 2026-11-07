@@ -12,6 +12,11 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.3.0", "8 november 2026",
+                L("Nieuwe manier van tekst zetten: even scherp in licht, donker en elke kleur, zonder gekleurde randjes", "New text rendering: equally sharp in light, dark and every colour, without coloured fringes"),
+                L("Grootte kiezen: klein, normaal, groot of extra groot (Uiterlijk)", "Choose a size: small, normal, large or extra large (Appearance)"),
+                L("Rustiger Instellingen: alleen titels, geen uitlegregels meer", "Calmer Settings: titles only, no extra explanation lines"),
+                L("Gebruik bijhouden op deze pc, om te zien wat wel en niet gebruikt wordt (Over)", "Keep usage stats on this PC, to see what is and is not used (About)")),
             V("1.2.2", "8 november 2026",
                 L("Bijwerken kan niet meer vastlopen: geen los vraagvenster meer dat achter Dusk verdwijnt", "Updating can no longer get stuck: no separate question window hiding behind Dusk"),
                 L("Staat Instellingen open, dan staat het venster niet meer altijd bovenop en gaat het mee weg met Instellingen", "While Settings is open, the window is no longer always on top and goes away with Settings")),

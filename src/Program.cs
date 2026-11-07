@@ -10,14 +10,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.2.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.0.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.2.2";
+        public const string Version = "1.3.0";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -39,11 +39,12 @@ namespace Dusk
                 }
                 SetDpiAwareness();
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-                Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Log.Error("Onverwachte fout", e.Exception); };
-                AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Log.Error("Fatale fout", e.ExceptionObject as Exception); };
+                Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Log.Error("Onverwachte fout", e.Exception); Usage.Count("fout"); };
+                AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Log.Error("Fatale fout", e.ExceptionObject as Exception); Usage.Count("fout.fataal"); };
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Settings.Load();
+                Usage.Count("gestart");
                 Log.Info("Start Dusk " + Version + " op " + Environment.OSVersion + (startup ? " (met Windows)" : ""));
                 Application.Run(new App(startup));
                 return 0;
@@ -95,6 +96,8 @@ namespace Dusk
             Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
 
             Shot(dir, "15-kiezen-150-procent", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at, 1.5f); });
+            Shot(dir, "16-licht-150-procent", false, "mica", "lila", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at, 1.5f); Settings.Current.ShowLockLogoff = false; return b; });
+            Shot(dir, "17-licht-effen-blauw", false, "solid", "blauw", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(30), null, false); return Compose(fl, at, 1.25f); });
             Settings.Current.Language = "en";
             Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), null, false); return Compose(fl, at); });
             Settings.Current.Language = "fr";
@@ -109,6 +112,7 @@ namespace Dusk
                 Shot(dir, "2" + page + "-instellingen-" + page, true, "mica", "lila", delegate { return SettingsShot(app, pg); });
             }
             Shot(dir, "24-instellingen-uiterlijk-licht", false, "mica", "lila", delegate { return SettingsShot(app, 1); });
+            Shot(dir, "26-instellingen-algemeen-licht", false, "solid", "blauw", delegate { return SettingsShot(app, 0); });
             Shot(dir, "25-instellingen-schemer", true, "dusk", "perzik", delegate { return SettingsShot(app, 2); });
 
             // taakbalkicoontjes

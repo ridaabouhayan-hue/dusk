@@ -25,12 +25,15 @@ namespace Dusk
         public bool Forced = false;
         public bool ShowLockLogoff = false;
         public PowerAction DefaultAction = PowerAction.Shutdown;
+        public int Zoom = 100;                  // grootte van het venster en Instellingen, in procenten
+        public bool TrackUsage = true;          // gebruik bijhouden in gebruik.txt (alleen op deze pc)
 
         public static readonly string[] Languages = { "nl", "en", "es", "fr" };
         public static readonly int[] Steps = { 5, 10, 15, 30 };
         public static readonly int[] WarnChoices = { 0, 1, 2, 5 };
         public static readonly int[] DelayChoices = { 0, 5, 10, 15, 30 };
         public static readonly string[] OpenChoices = { "smart", "tray", "center", "last" };
+        public static readonly int[] ZoomChoices = { 90, 100, 115, 130 };
         public static readonly string[] DefaultPresets = { "15", "30", "60", "120" };
         public const int MaxPresets = 5;
 
@@ -62,6 +65,8 @@ namespace Dusk
             sb.AppendLine("geforceerd=" + (Forced ? "1" : "0"));
             sb.AppendLine("vergrendelen=" + (ShowLockLogoff ? "1" : "0"));
             sb.AppendLine("standaard=" + ((int)DefaultAction).ToString(C));
+            sb.AppendLine("grootte=" + Zoom.ToString(C));
+            sb.AppendLine("gebruik=" + (TrackUsage ? "1" : "0"));
             return sb.ToString();
         }
 
@@ -89,6 +94,8 @@ namespace Dusk
                     case "waarschuwing": if (isNum && Array.IndexOf(WarnChoices, n) >= 0) s.WarnMinutes = n; break;
                     case "wachttijd": if (isNum && Array.IndexOf(DelayChoices, n) >= 0) s.DelaySeconds = n; break;
                     case "openen": if (Array.IndexOf(OpenChoices, v) >= 0) s.OpenAt = v; break;
+                    case "grootte": if (isNum && Array.IndexOf(ZoomChoices, n) >= 0) s.Zoom = n; break;
+                    case "gebruik": s.TrackUsage = v != "0"; break;
                     case "plek":
                         {
                             string[] xy = v.Split(',');

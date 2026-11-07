@@ -26,6 +26,8 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 - Alles wordt zelf getekend. Het hoofdvenster is een gelaagd venster (UpdateLayeredWindow).
 - Stroom (`src/Power.cs`): SetSuspendState voor slaap en sluimer, maar bij Modern Standby het scherm uit (NtPowerInformation ScreenOff, zoals het startmenu). Nooit `rundll32 powrprof.dll,SetSuspendState`. Afsluiten met ExitWindowsEx, hybride als Snel opstarten aan staat.
 - Teksten in vier talen: pas `build/lang.py` aan en draai het; dat schrijft `src/Lang.cs`.
+- Tekst: altijd via `Ui.Text`/`TextAt`/`Wrap` (witte GDI-tekst als masker, grijs gladgemaakt, ingekleurd). Geen DrawString of TextRenderer los gebruiken.
+- Gebruik en fouten: `Usage.Count("...")` schrijft tellers naar `%APPDATA%\Dusk\gebruik.txt`, fouten gaan naar `log.txt`. Alleen lokaal, uit te zetten in Over.
 - Tests: `tests/Tests.cs`. Zelftest met schermafbeeldingen: `Dusk.exe --zelftest --map <map>`.
 
 ## GitHub

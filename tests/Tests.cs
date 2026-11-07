@@ -148,6 +148,7 @@ namespace Dusk
             Settings a = new Settings();
             a.Language = "fr"; a.Theme = "light"; a.Backdrop = "dusk"; a.Accent = "roze"; a.Hotkey = "Ctrl+Alt+End";
             a.StepMinutes = 10; a.WarnMinutes = 5; a.DelaySeconds = 30; a.OpenAt = "last"; a.LastX = -1200; a.LastY = 300; a.Presets = new List<string> { "45", "23:30" }; a.Forced = true; a.ShowLockLogoff = true; a.DefaultAction = PowerAction.Lock;
+            a.Zoom = 130; a.TrackUsage = false;
             Settings b = Settings.Parse(a.Serialize());
             Eq(a.Serialize(), b.Serialize(), "heen en terug");
             Settings c = Settings.Parse("taal=xx\nthema=paars\nstap=7\nsneltoets=Q\nkapot\n=leeg\nstandaard=4\n");
@@ -161,6 +162,14 @@ namespace Dusk
             Eq("15,23:30,60,90,120", string.Join(",", e.Presets.ToArray()), "vaste tijden: geldig, uniek, max 5");
             Eq(10, e.DelaySeconds, "onbekende wachttijd");
             Eq("smart", e.OpenAt, "onbekende plek");
+            Eq(100, Settings.Parse("grootte=250\n").Zoom, "onbekende grootte");
+            Eq(115, Settings.Parse("grootte=115\n").Zoom, "grootte 115");
+            Eq(true, new Settings().TrackUsage, "gebruik standaard aan");
+            // gebruik: heen en terug, kapotte regels negeren
+            SortedDictionary<string, int> u = Usage.Parse("# kop\nactie.afsluiten=3\nkapot\ntimer.gestart=x\ngestart=12\n");
+            Eq(2, u.Count, "gebruik: alleen geldige regels");
+            Eq(3, u["actie.afsluiten"], "gebruik: teller");
+            Eq(Usage.Serialize(u), Usage.Serialize(Usage.Parse(Usage.Serialize(u))), "gebruik heen en terug");
             DateTime now = new DateTime(2026, 11, 7, 17, 0, 0);
             Eq("Na Enter: 10 seconden aftellen, dan afsluiten", Lang.Info(PowerAction.Shutdown, TimeChoice.Now, 10, now), "info aftellen");
             Eq("Na Enter: meteen vergrendelen", Lang.Info(PowerAction.Lock, TimeChoice.Now, 0, now), "info meteen");

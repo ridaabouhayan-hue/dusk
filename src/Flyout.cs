@@ -99,11 +99,22 @@ namespace Dusk
             if (app.Scheduler.Active) Mode = View.Running;
             else if (Mode != View.Undo) { if (!Visible) { Mode = View.Choose; ResetChoice(); } else if (Mode == View.Running) Mode = View.Choose; }
             passive = !activate;
-            if (!Visible) Place(origin);
+            if (!Visible) { lastOrigin = origin; Place(origin); }
             Render();
             if (!Visible) Show();
             W.SetWindowPos(Handle, companionOf != IntPtr.Zero ? W.HWND_TOP : W.HWND_TOPMOST, 0, 0, 0, 0, W.SWP_NOMOVE | W.SWP_NOSIZE | (activate ? 0 : W.SWP_NOACTIVATE));
             if (activate) { Activate(); W.ForceForeground(Handle); }
+        }
+
+        // Andere grootte gekozen: opnieuw neerzetten op dezelfde soort plek
+        Origin lastOrigin = Origin.Launch;
+
+        public void Rescale()
+        {
+            if (!Visible) return;
+            Place(lastOrigin);
+            lastHeight = 0;
+            Render();
         }
 
         // Terwijl Instellingen open staat hoort het venster bij Instellingen en staat het niet altijd bovenop.
@@ -170,7 +181,7 @@ namespace Dusk
             {
                 Point p = new Point(Settings.Current.LastX, Settings.Current.LastY);
                 scr = Screen.FromPoint(p);
-                s = W.DpiScaleAt(p);
+                s = W.DpiScaleAt(p) * Settings.Current.Zoom / 100f;
                 Rectangle wa0 = scr.WorkingArea;
                 int w0 = (int)Math.Round(PanelW * s), h0 = (int)Math.Round(Height_() * s);
                 panelPos = new Point(Math.Max(wa0.Left, Math.Min(wa0.Right - w0, p.X)), Math.Max(wa0.Top, Math.Min(wa0.Bottom - h0, p.Y)));
@@ -178,7 +189,7 @@ namespace Dusk
                 return;
             }
             Rectangle wa = scr.WorkingArea;
-            s = W.DpiScaleAt(new Point(wa.Left + wa.Width / 2, wa.Top + wa.Height / 2));
+            s = W.DpiScaleAt(new Point(wa.Left + wa.Width / 2, wa.Top + wa.Height / 2)) * Settings.Current.Zoom / 100f;
             int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(Height_() * s), gap = (int)Math.Round(12 * s);
             if (!tray && mode != "last")
             {
@@ -555,6 +566,7 @@ namespace Dusk
 
         void OpenPicker(bool forPreset)
         {
+            Usage.Count(forPreset ? "vaste-tijd.toegevoegd" : "tijd-kiezen");
             pickForPreset = forPreset;
             pickBuf = ""; pickCol = 0;
             if (choice.IsClock) { pickAt = true; pickH = choice.Hour; pickM = choice.Minute; }
@@ -767,7 +779,7 @@ namespace Dusk
                     {
                         List<TimeChoice> pre = Presets();
                         int i = int.Parse(id.Substring(4));
-                        if (i < pre.Count) choice = Same(choice, pre[i]) ? TimeChoice.Now : pre[i];   // nog een keer klikken = terug naar Nu
+                        if (i < pre.Count) { choice = Same(choice, pre[i]) ? TimeChoice.Now : pre[i]; Usage.Count("vaste-tijd." + TimeInput.Label(pre[i]).Replace(" ", "")); }   // nog een keer klikken = terug naar Nu
                     }
                     else if (id == "addpreset") OpenPicker(true);
                     else if (id == "minus") StepTime(-1);
@@ -777,7 +789,7 @@ namespace Dusk
                     break;
                 case View.Running:
                     if (id == "add") app.Scheduler.Add(Settings.Current.StepMinutes);
-                    else if (id == "cancel") { app.Scheduler.Cancel(); Mode = View.Choose; ResetChoice(); }
+                    else if (id == "cancel") { app.Scheduler.Cancel(); Usage.Count("timer.geannuleerd"); Mode = View.Choose; ResetChoice(); }
                     else if (id == "donow") { app.Execute(app.Scheduler.Action, true); return; }
                     break;
                 case View.Undo:
@@ -915,6 +927,7 @@ namespace Dusk
                 return;
             }
             app.Scheduler.Start(a, choice.TargetFrom(DateTime.Now));
+            Usage.Count("timer.gestart");
             Mode = View.Running;
             Render();
         }
@@ -927,6 +940,7 @@ namespace Dusk
 
         void CancelUndo()
         {
+            Usage.Count("aftellen.gestopt");
             anim.Stop();
             Mode = View.Choose;
             Render();

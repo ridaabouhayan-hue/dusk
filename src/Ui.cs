@@ -76,23 +76,33 @@ namespace Dusk
             using (GraphicsPath p = Round(rr, Math.Max(0, rad - w / 2))) using (Pen pen = new Pen(c, w)) g.DrawPath(pen, p);
         }
 
-        // Tekst tekenen we met de tekstmotor van Windows zelf (GDI, zoals Verkenner en Instellingen).
-        // Die zet de letters precies op de pixels en is daardoor veel scherper dan DrawString.
-        // GDI kent geen doorzichtige tekst: een halfdoorzichtige kleur mengen we vooraf met de achtergrond.
-        public static Color Back = Color.FromArgb(32, 32, 34);
+        // ---------------------------------------------------------------- tekst
+        // Eén manier van tekst zetten voor elk thema, elke kleur en elke achtergrond:
+        // 1. Windows zet de letters wit op zwart in een apart plaatje (dat doet GDI altijd goed en scherp).
+        // 2. Daaruit halen we per pixel hoeveel "letter" erin zit, zonder de gekleurde randjes van ClearType
+        //    (grijs gladmaken, zoals de apps van Windows 11 zelf doen).
+        // 3. Dat plaatje kleuren we in de tekstkleur en leggen we op het venster. Voor donkere tekst op een
+        //    lichte achtergrond corrigeren we de dikte, zodat die er net zo uitziet als lichte tekst op donker.
+        public static Color Back = Color.FromArgb(32, 32, 34);   // ongeveer de kleur onder de tekst
 
-        public static Color Solid(Color c)
+        static readonly byte[] DarkOnLight = MakeDarkTable();
+
+        static byte[] MakeDarkTable()
         {
-            if (c.A == 255) return c;
-            float a = c.A / 255f;
-            return Color.FromArgb(255,
-                (int)Math.Round(c.R * a + Back.R * (1 - a)),
-                (int)Math.Round(c.G * a + Back.G * (1 - a)),
-                (int)Math.Round(c.B * a + Back.B * (1 - a)));
+            byte[] t = new byte[256];
+            const double gamma = 1.9;
+            for (int v = 0; v < 256; v++)
+            {
+                double k = Math.Pow(v / 255.0, gamma);                  // hoeveel van de pixel bedekt is
+                double a = 1 - Math.Pow(1 - k, 1 / gamma);              // dezelfde bedekking voor donker op licht
+                t[v] = (byte)Math.Max(0, Math.Min(255, Math.Round(a * 255)));
+            }
+            return t;
         }
 
-        const TextFormatFlags Base = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine |
-            TextFormatFlags.VerticalCenter | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform;
+        public static double Luma(Color c) { return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0; }
+
+        const TextFormatFlags Base = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
 
         static Rectangle Px(RectangleF r)
         {
@@ -103,27 +113,72 @@ namespace Dusk
         {
             TextFormatFlags fl = Base | TextFormatFlags.EndEllipsis |
                 (align < 0 ? TextFormatFlags.Left : align == 0 ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Right);
-            TextRenderer.DrawText(g, s, f, Px(r), Solid(c), fl);
+            Draw(g, s, f, c, Px(r), fl);
         }
 
         // Tekst die over meerdere regels mag lopen (uitleg in Instellingen)
         public static void Wrap(Graphics g, string s, Font f, Color c, RectangleF r)
         {
-            TextFormatFlags fl = TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl |
-                TextFormatFlags.EndEllipsis | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.PreserveGraphicsTranslateTransform;
-            TextRenderer.DrawText(g, s, f, Px(r), Solid(c), fl);
+            Draw(g, s, f, c, Px(r), TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.EndEllipsis);
         }
 
         // Tekst precies vanaf x. Hoort bij Width(): samen meten en tekenen ze hetzelfde,
         // zodat een knop altijd breed genoeg is voor zijn tekst.
         public static void TextAt(Graphics g, string s, Font f, Color c, float x, RectangleF row)
         {
-            TextRenderer.DrawText(g, s, f, Px(new RectangleF(x, row.Y, 10000, row.Height)), Solid(c), Base | TextFormatFlags.Left);
+            float w = Width(g, s, f) + 4;
+            Draw(g, s, f, c, Px(new RectangleF(x, row.Y, w, row.Height)), Base | TextFormatFlags.Left);
         }
 
         public static float Width(Graphics g, string s, Font f)
         {
             return TextRenderer.MeasureText(g, s, f, new Size(100000, 100000), TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
+        }
+
+        static void Draw(Graphics g, string s, Font f, Color c, Rectangle r, TextFormatFlags fl)
+        {
+            if (string.IsNullOrEmpty(s) || r.Width <= 0 || r.Height <= 0 || c.A == 0) return;
+            int w = r.Width, h = r.Height;
+            using (Bitmap mask = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
+            using (Bitmap ink = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            {
+                using (Graphics gm = Graphics.FromImage(mask))
+                {
+                    gm.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                    gm.Clear(Color.Black);
+                    TextRenderer.DrawText(gm, s, f, new Rectangle(0, 0, w, h), Color.White, Color.Black, fl);
+                }
+                bool darkText = Luma(c) < Luma(Back);
+                int rgb = (c.R << 16) | (c.G << 8) | c.B;
+                Rectangle all = new Rectangle(0, 0, w, h);
+                System.Drawing.Imaging.BitmapData md = mask.LockBits(all, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                System.Drawing.Imaging.BitmapData id = ink.LockBits(all, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    int[] row = new int[w];
+                    for (int y = 0; y < h; y++)
+                    {
+                        System.Runtime.InteropServices.Marshal.Copy(new IntPtr(md.Scan0.ToInt64() + (long)y * md.Stride), row, 0, w);
+                        for (int x = 0; x < w; x++)
+                        {
+                            int px = row[x];
+                            int v = (((px >> 16) & 255) + ((px >> 8) & 255) + (px & 255)) / 3;   // grijs, geen kleurrandjes
+                            if (darkText) v = DarkOnLight[v];
+                            int a = v * c.A / 255;
+                            row[x] = (a << 24) | rgb;
+                        }
+                        System.Runtime.InteropServices.Marshal.Copy(row, 0, new IntPtr(id.Scan0.ToInt64() + (long)y * id.Stride), w);
+                    }
+                }
+                finally { mask.UnlockBits(md); ink.UnlockBits(id); }
+                InterpolationMode im = g.InterpolationMode;
+                PixelOffsetMode pm = g.PixelOffsetMode;
+                g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                g.PixelOffsetMode = PixelOffsetMode.Half;      // pixel op pixel, niets vervaagt
+                g.DrawImage(ink, new Rectangle(r.X, r.Y, w, h), 0, 0, w, h, GraphicsUnit.Pixel);
+                g.InterpolationMode = im;
+                g.PixelOffsetMode = pm;
+            }
         }
 
         // Zet een dichte laag met afgeronde hoeken op het venster. De hoeken worden per pixel

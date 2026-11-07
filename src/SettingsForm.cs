@@ -34,7 +34,7 @@ namespace Dusk
             DoubleBuffered = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
-            s = Program.SelfTest ? 1f : W.DpiScaleAt(Cursor.Position);
+            s = (Program.SelfTest ? 1f : W.DpiScaleAt(Cursor.Position)) * Settings.Current.Zoom / 100f;
             ClientSize = new Size((int)(LogicalW * s), (int)(LogicalH * s));
             ApplyTheme();
         }
@@ -106,14 +106,23 @@ namespace Dusk
         void Add(RectangleF r, string id, Action a) { hits.Add(new Hit { R = r, Id = id, Do = a }); }
 
         // Een kaart met titel en uitleg links; geeft het vlak terug waar rechts de knop komt
-        RectangleF Card(Graphics g, Palette p, float x, float y, float w, string title, string desc)
+        // Een kaart met alleen een titel (de titel zegt genoeg). Een tweede regel komt er alleen bij
+        // als er echt iets te melden is, zoals bij het kiezen van een sneltoets.
+        const float CardH = 54, CardStep = 62;
+
+        RectangleF Card(Graphics g, Palette p, float x, float y, float w, string title, string note)
         {
-            RectangleF r = R(x, y, w, 64);
+            RectangleF r = R(x, y, w, CardH);
             Ui.Fill(g, r, S(10), p.Fill);
             Ui.Stroke(g, r, S(10), p.Stroke, Math.Max(1f, s));
-            using (Font f = Ui.F(14, s, false)) Ui.Text(g, title, f, p.T1, R(x + 16, y + 11, w * 0.66f, 22), -1);
-            using (Font f = Ui.F(12, s, false)) Ui.Text(g, desc, f, p.T3, R(x + 16, y + 33, w * 0.66f, 20), -1);
-            return R(x + w * 0.68f, y, w * 0.32f - 16, 64);
+            if (note == null)
+                using (Font f = Ui.F(14, s, false)) Ui.Text(g, title, f, p.T1, R(x + 16, y, w * 0.64f, CardH), -1);
+            else
+            {
+                using (Font f = Ui.F(14, s, false)) Ui.Text(g, title, f, p.T1, R(x + 16, y + 6, w * 0.64f, 22), -1);
+                using (Font f = Ui.F(12, s, false)) Ui.Text(g, note, f, p.Accent, R(x + 16, y + 27, w * 0.64f, 20), -1);
+            }
+            return R(x + w * 0.66f, y, w * 0.34f - 16, CardH);
         }
 
         void Toggle(Graphics g, Palette p, RectangleF area, bool on, string id, Action flip)
@@ -168,33 +177,33 @@ namespace Dusk
             Settings st = Settings.Current;
             string[] langs = new string[Settings.Languages.Length];
             for (int i = 0; i < langs.Length; i++) langs[i] = Lang.Name(Settings.Languages[i]);
-            RectangleF a = Card(g, p, x, y, w, Lang.T("set.lang"), "Nederlands, English, Español, Français");
+            RectangleF a = Card(g, p, x, y, w, Lang.T("set.lang"), null);
             Choice(g, p, a, Lang.Name(st.Language), "lang", langs, delegate(int i) { st.Language = Settings.Languages[i]; ApplyTheme(); });
-            y += 70;
-            a = Card(g, p, x, y, w, Lang.T("set.autostart"), Lang.T("set.autostart.d"));
+            y += CardStep;
+            a = Card(g, p, x, y, w, Lang.T("set.autostart"), null);
             bool auto = Settings.Autostart;
             Toggle(g, p, a, auto, "auto", delegate { Settings.Autostart = !auto; });
-            y += 70;
+            y += CardStep;
             List<PowerAction> acts = app.Flyout.Actions();
             string[] names = new string[acts.Count];
             for (int i = 0; i < acts.Count; i++) names[i] = Lang.ActionName(acts[i]);
-            a = Card(g, p, x, y, w, Lang.T("set.default"), Lang.T("set.default.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.default"), null);
             Choice(g, p, a, Lang.ActionName(st.DefaultAction), "default", names, delegate(int i) { st.DefaultAction = acts[i]; });
-            y += 70;
-            a = Card(g, p, x, y, w, Lang.T("set.lock"), Lang.T("set.lock.d"));
+            y += CardStep;
+            a = Card(g, p, x, y, w, Lang.T("set.lock"), null);
             Toggle(g, p, a, st.ShowLockLogoff, "lock", delegate
             {
                 st.ShowLockLogoff = !st.ShowLockLogoff;
                 if (!st.ShowLockLogoff && (st.DefaultAction == PowerAction.Lock || st.DefaultAction == PowerAction.Logoff)) st.DefaultAction = PowerAction.Shutdown;
                 app.SettingsChanged();
             });
-            y += 70;
+            y += CardStep;
             string[] opens = new string[Settings.OpenChoices.Length];
             for (int i = 0; i < opens.Length; i++) opens[i] = Lang.T("open." + Settings.OpenChoices[i]);
-            a = Card(g, p, x, y, w, Lang.T("set.open"), st.OpenAt == "smart" ? Lang.T("open.smart.d") : Lang.T("set.open.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.open"), null);
             Choice(g, p, a, Lang.T("open." + st.OpenAt), "open", opens, delegate(int i) { st.OpenAt = Settings.OpenChoices[i]; });
-            y += 70;
-            a = Card(g, p, x, y, w, Lang.T("set.forced"), Lang.T("set.forced.d"));
+            y += CardStep;
+            a = Card(g, p, x, y, w, Lang.T("set.forced"), null);
             Toggle(g, p, a, st.Forced, "forced", delegate { st.Forced = !st.Forced; app.SettingsChanged(); });
         }
 
@@ -250,18 +259,17 @@ namespace Dusk
             {
                 string th = themes[i];
                 bool dark = th == "dark" || (th == "system" && sysDark);
-                Tile(g, p, R(x + i * (tw + 10), y, tw, 112), tl[i], i == 0 ? Lang.T("theme.system.d") : null, st.Theme == th, "th" + i, delegate { st.Theme = th; ApplyTheme(); }, dark, st.Backdrop);
+                Tile(g, p, R(x + i * (tw + 10), y, tw, 112), tl[i], null, st.Theme == th, "th" + i, delegate { st.Theme = th; ApplyTheme(); }, dark, st.Backdrop);
             }
             y += 124;
             using (Font f = Ui.F(13, s, true)) Ui.Text(g, Lang.T("set.backdrop"), f, p.T1, R(x, y, w, 20), -1);
             y += 24;
             string[] bds = { "mica", "solid", "dusk" };
             string[] bl = { Lang.T("bd.mica"), Lang.T("bd.solid"), Lang.T("bd.dusk") };
-            string[] bs = { Lang.T("bd.mica.d"), Lang.T("bd.solid.d"), Lang.T("bd.dusk.d") };
             for (int i = 0; i < 3; i++)
             {
                 string bd = bds[i];
-                Tile(g, p, R(x + i * (tw + 10), y, tw, 112), bl[i], bs[i], st.Backdrop == bd, "bd" + i, delegate { st.Backdrop = bd; Invalidate(); }, p.Dark, bd);
+                Tile(g, p, R(x + i * (tw + 10), y, tw, 112), bl[i], null, st.Backdrop == bd, "bd" + i, delegate { st.Backdrop = bd; Invalidate(); }, p.Dark, bd);
             }
             y += 124;
             using (Font f = Ui.F(13, s, true)) Ui.Text(g, Lang.T("set.accent"), f, p.T1, R(x, y, w, 20), -1);
@@ -281,12 +289,33 @@ namespace Dusk
                 using (Font f = Ui.F(11, s, on)) Ui.Text(g, Lang.T("acc." + key), f, p.T2, new RectangleF(c.X - S(18), c.Bottom + S(6), c.Width + S(36), S(16)), 0);
                 Add(new RectangleF(c.X - S(8), c.Y - S(6), c.Width + S(16), c.Height + S(28)), "acc" + i, delegate { st.Accent = key; app.SettingsChanged(); app.ThemeChanged(); });
             }
+            y += 68;
+            string[] sizes = new string[Settings.ZoomChoices.Length];
+            for (int i = 0; i < sizes.Length; i++) sizes[i] = ZoomLabel(Settings.ZoomChoices[i]);
+            RectangleF za = Card(g, p, x, y, w, Lang.T("set.size"), null);
+            Choice(g, p, za, ZoomLabel(st.Zoom), "size", sizes, delegate(int i) { st.Zoom = Settings.ZoomChoices[i]; Usage.Count("grootte." + st.Zoom); ApplyZoom(); });
+        }
+
+        // Andere grootte: Instellingen en het venster meteen groter of kleiner
+        void ApplyZoom()
+        {
+            float dpi = Program.SelfTest ? 1f : W.DpiScaleAt(new Point(Left + Width / 2, Top + Height / 2));
+            s = dpi * Settings.Current.Zoom / 100f;
+            ClientSize = new Size((int)(LogicalW * s), (int)(LogicalH * s));
+            app.Flyout.Rescale();
+            app.KeepApart();
+            Invalidate();
+        }
+
+        static string ZoomLabel(int z)
+        {
+            return Lang.T(z == 90 ? "size.small" : z == 100 ? "size.normal" : z == 115 ? "size.large" : "size.xlarge") + " (" + z + "%)";
         }
 
         void PageKeys(Graphics g, Palette p, float x, float y, float w)
         {
             Settings st = Settings.Current;
-            RectangleF a = Card(g, p, x, y, w, Lang.T("set.hotkey"), capturing ? (captureError ?? Lang.T("set.press")) : (captureError ?? Lang.T("set.hotkey.d")));
+            RectangleF a = Card(g, p, x, y, w, Lang.T("set.hotkey"), capturing ? (captureError ?? Lang.T("set.press")) : captureError);
             using (Font f = Ui.F(12, s, false))
             {
                 string hk = capturing ? "..." : (app.ActiveHotkey ?? st.Hotkey);
@@ -302,25 +331,25 @@ namespace Dusk
                 Ui.Text(g, hk, f, p.T1, kb, 0);
                 Add(cb, "hk", delegate { capturing = !capturing; captureError = null; if (capturing) app.SuspendHotkey(); else app.RestoreHotkey(); });
             }
-            y += 70;
+            y += CardStep;
             string[] steps = new string[Settings.Steps.Length];
             for (int i = 0; i < steps.Length; i++) steps[i] = Settings.Steps[i] + " min";
-            a = Card(g, p, x, y, w, Lang.T("set.step"), Lang.T("set.step.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.step"), null);
             Choice(g, p, a, st.StepMinutes + " min", "step", steps, delegate(int i) { st.StepMinutes = Settings.Steps[i]; });
-            y += 70;
+            y += CardStep;
             string[] warns = new string[Settings.WarnChoices.Length];
             for (int i = 0; i < warns.Length; i++) warns[i] = Settings.WarnChoices[i] == 0 ? Lang.T("warn.off") : Settings.WarnChoices[i] + " min";
-            a = Card(g, p, x, y, w, Lang.T("set.warn"), Lang.T("set.warn.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.warn"), null);
             Choice(g, p, a, st.WarnMinutes == 0 ? Lang.T("warn.off") : st.WarnMinutes + " min", "warn", warns, delegate(int i) { st.WarnMinutes = Settings.WarnChoices[i]; });
-            y += 70;
+            y += CardStep;
             string[] delays = new string[Settings.DelayChoices.Length];
             for (int i = 0; i < delays.Length; i++) delays[i] = DelayLabel(Settings.DelayChoices[i]);
-            a = Card(g, p, x, y, w, Lang.T("set.delay"), Lang.T("set.delay.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.delay"), null);
             Choice(g, p, a, DelayLabel(st.DelaySeconds), "delay", delays, delegate(int i) { st.DelaySeconds = Settings.DelayChoices[i]; });
-            y += 70;
+            y += CardStep;
             List<string> shown = new List<string>();
             foreach (string pr in st.Presets) shown.Add(TimeInput.Label(TimeInput.Parse(pr)));
-            a = Card(g, p, x, y, w, Lang.T("set.presets") + ": " + string.Join(", ", shown.ToArray()), Lang.T("set.presets.d"));
+            a = Card(g, p, x, y, w, Lang.T("set.presets") + ": " + string.Join(", ", shown.ToArray()), null);
             using (Font f = Ui.F(13, s, false))
             {
                 string lbl = Lang.T("btn.reset");
@@ -379,10 +408,10 @@ namespace Dusk
                 using (Font fs = Ui.F(12, s, false)) Ui.Text(g, sub, fs, p.T3, new RectangleF(tx, card.Y + S(46), tw, S(20)), -1);
             }
             y += 98;
-            RectangleF a = Card(g, p, x, y, w, Lang.T("upd.notify"), Lang.T("upd.notify.d"));
+            RectangleF a = Card(g, p, x, y, w, Lang.T("upd.notify"), null);
             Settings st = Settings.Current;
             Toggle(g, p, a, st.UpdateCheck, "updnotify", delegate { st.UpdateCheck = !st.UpdateCheck; app.SettingsChanged(); });
-            y += 78;
+            y += CardStep + 8;
             using (Font f = Ui.F(13, s, true)) Ui.Text(g, Lang.T("upd.news"), f, p.T1, R(x, y, w, 20), -1);
             y += 26;
             foreach (Changelog.Version v in Changelog.All)
@@ -439,7 +468,15 @@ namespace Dusk
                 Ui.Wrap(g, Lang.T("about.text"), f, p.T1, R(x, y, w, 44));
                 Ui.Wrap(g, Lang.T("about.privacy"), f, p.T2, R(x, y + 50, w, 24));
             }
-            y += 92;
+            y += 84;
+            Settings st = Settings.Current;
+            RectangleF ua = Card(g, p, x, y, w, Lang.T("set.usage"), null);
+            Toggle(g, p, ua, st.TrackUsage, "usage", delegate { st.TrackUsage = !st.TrackUsage; app.SettingsChanged(); });
+            y += CardH + 8;
+            if (st.TrackUsage)
+                using (Font f = Ui.F(12, s, false))
+                    Ui.Text(g, Lang.F("usage.summary", Usage.Get("gestart"), Usage.Sum("actie."), Usage.Get("timer.gestart"), Usage.Sum("fout")), f, p.T3, R(x + 4, y, w, 20), -1);
+            y += 32;
             string[] labels = { Lang.T("about.log"), Lang.T("about.github") };
             float bx = x;
             for (int i = 0; i < 2; i++)
