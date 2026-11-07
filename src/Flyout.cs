@@ -65,9 +65,7 @@ namespace Dusk
         // ---------------------------------------------------------------- opties in het menu
         public List<PowerAction> Actions()
         {
-            List<PowerAction> l = new List<PowerAction> { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Shutdown };
-            if (Settings.Current.ShowLockLogoff) { l.Add(PowerAction.Lock); l.Add(PowerAction.Logoff); }
-            return l;
+            return Settings.Current.MenuActions();
         }
 
         public PowerAction SelectedAction
@@ -79,8 +77,14 @@ namespace Dusk
         {
             List<PowerAction> l = Actions();
             int i = l.IndexOf(Settings.Current.DefaultAction);
-            selected = i >= 0 ? i : 3;
-            if (!Power.Available(SelectedAction)) selected = l.IndexOf(PowerAction.Shutdown);
+            if (i < 0) i = l.IndexOf(PowerAction.Shutdown);
+            selected = Math.Max(0, i);
+            if (!Power.Available(SelectedAction))
+            {
+                // standaardkeuze kan hier niet: de eerste optie die wel kan
+                selected = 0;
+                for (int k = 0; k < l.Count; k++) if (Power.Available(l[k])) { selected = k; break; }
+            }
             choice = TimeChoice.Now;
             message = null;
             hover = null; press = null;
@@ -943,6 +947,20 @@ namespace Dusk
             Usage.Count("aftellen.gestopt");
             anim.Stop();
             Mode = View.Choose;
+            Render();
+        }
+
+        // Vanuit het menu van het taakbalkicoon: meteen deze actie, met het gewone aftellen zodat je nog kunt stoppen
+        public void StartNow(PowerAction a)
+        {
+            if (!Power.Available(a)) return;
+            if (Settings.Current.DelaySeconds <= 0) { app.Execute(a, false); return; }
+            Mode = View.Choose;
+            ShowFlyout(true, Origin.Tray);
+            undoAction = a;
+            undoEnd = DateTime.Now.AddSeconds(Settings.Current.DelaySeconds);
+            Mode = View.Undo;
+            anim.Start();
             Render();
         }
 

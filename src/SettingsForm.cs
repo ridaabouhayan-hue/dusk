@@ -13,8 +13,9 @@ namespace Dusk
         const int LogicalW = 720, LogicalH = 540, NavW = 184;
         readonly App app;
         float s = 1f;
-        public int Page;                    // 0 algemeen, 1 uiterlijk, 2 sneltoets en timer, 3 bijwerken, 4 over
-        public const int UpdatePage = 3;
+        public int Page;                    // 0 algemeen, 1 menu, 2 uiterlijk, 3 sneltoets en timer, 4 bijwerken, 5 over
+        public const int MenuPage = 1, UpdatePage = 4;
+        public const int PageCount = 6;
         int updState; DateTime updCheckedAt;   // 0 nog niet gekeken, 1 bezig, 2 nieuwste, 3 mislukt
         string hover;
         bool capturing; string captureError;
@@ -74,7 +75,7 @@ namespace Dusk
             // links: logo en menu
             Ui.Logo(g, R(20, 18, 22, 22), p.Dark ? Color.FromArgb(224, 231, 255) : Color.FromArgb(55, 48, 163), 4.5f, 1f, Color.Empty);
             using (Font f = Ui.F(14, s, true)) Ui.Text(g, "Dusk", f, p.T1, R(50, 14, 120, 30), -1);
-            string[] nav = { "nav.general", "nav.look", "nav.keys", "nav.update", "nav.about" };
+            string[] nav = { "nav.general", "nav.menu", "nav.look", "nav.keys", "nav.update", "nav.about" };
             for (int i = 0; i < nav.Length; i++)
             {
                 RectangleF r = R(10, 58 + i * 40, NavW - 20, 36);
@@ -93,9 +94,10 @@ namespace Dusk
             switch (Page)
             {
                 case 0: PageGeneral(g, p, x, y, w); break;
-                case 1: PageLook(g, p, x, y, w); break;
-                case 2: PageKeys(g, p, x, y, w); break;
-                case 3: PageUpdate(g, p, x, y, w); break;
+                case 1: PageMenu(g, p, x, y, w); break;
+                case 2: PageLook(g, p, x, y, w); break;
+                case 3: PageKeys(g, p, x, y, w); break;
+                case 4: PageUpdate(g, p, x, y, w); break;
                 default: PageAbout(g, p, x, y, w); break;
             }
         }
@@ -190,14 +192,6 @@ namespace Dusk
             a = Card(g, p, x, y, w, Lang.T("set.default"), null);
             Choice(g, p, a, Lang.ActionName(st.DefaultAction), "default", names, delegate(int i) { st.DefaultAction = acts[i]; });
             y += CardStep;
-            a = Card(g, p, x, y, w, Lang.T("set.lock"), null);
-            Toggle(g, p, a, st.ShowLockLogoff, "lock", delegate
-            {
-                st.ShowLockLogoff = !st.ShowLockLogoff;
-                if (!st.ShowLockLogoff && (st.DefaultAction == PowerAction.Lock || st.DefaultAction == PowerAction.Logoff)) st.DefaultAction = PowerAction.Shutdown;
-                app.SettingsChanged();
-            });
-            y += CardStep;
             string[] opens = new string[Settings.OpenChoices.Length];
             for (int i = 0; i < opens.Length; i++) opens[i] = Lang.T("open." + Settings.OpenChoices[i]);
             a = Card(g, p, x, y, w, Lang.T("set.open"), null);
@@ -244,6 +238,113 @@ namespace Dusk
             using (Font f = Ui.F(13, s, on)) Ui.Text(g, label, f, p.T1, new RectangleF(r.X, pv.Bottom + S(6), r.Width, S(20)), 0);
             if (sub != null) using (Font f = Ui.F(11, s, false)) Ui.Text(g, sub, f, p.T3, new RectangleF(r.X, pv.Bottom + S(24), r.Width, S(16)), 0);
             Add(r, id, delegate { pick(); app.SettingsChanged(); app.ThemeChanged(); });
+        }
+
+        // ---------------------------------------------------------------- pagina Menu: welke knoppen, in welke volgorde
+        const float RowH = 48, RowStep = 54;
+        int dragIndex = -1;          // welke regel je aan het slepen bent
+        float dragOffset;            // waar je de regel vastpakte (binnen de regel)
+        float dragY;                 // waar de muis nu is
+        float menuTop;               // bovenkant van de lijst (schermpunten)
+        bool dragMoved;
+
+        void PageMenu(Graphics g, Palette p, float x, float y, float w)
+        {
+            Settings st = Settings.Current;
+            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.T("menu.hint"), f, p.T3, R(x + 2, y - 4, w, 20), -1);
+            y += 24;
+            menuTop = S(y);
+            int visibleNo = 0;
+            for (int i = 0; i < st.Order.Count; i++)
+            {
+                PowerAction a = st.Order[i];
+                bool on = !st.Hidden.Contains(a);
+                if (on) visibleNo++;
+                if (i == dragIndex) continue;   // de gesleepte regel tekenen we als laatste, boven de rest
+                DrawMenuRow(g, p, R(x, y + i * RowStep, w, RowH), i, a, on, on ? visibleNo : 0, false);
+            }
+            if (dragIndex >= 0 && dragIndex < st.Order.Count)
+            {
+                PowerAction a = st.Order[dragIndex];
+                float top = Math.Max(menuTop, Math.Min(menuTop + S((st.Order.Count - 1) * RowStep), dragY - dragOffset));
+                RectangleF r = new RectangleF(S(x), top, S(w), S(RowH));
+                Ui.Shadow(g, r, S(10), s * 0.6f, p.Dark);
+                DrawMenuRow(g, p, r, dragIndex, a, !st.Hidden.Contains(a), 0, true);
+            }
+        }
+
+        void DrawMenuRow(Graphics g, Palette p, RectangleF r, int index, PowerAction a, bool on, int number, bool lifted)
+        {
+            Settings st = Settings.Current;
+            Ui.Fill(g, r, S(10), lifted ? p.Solid : p.Fill);
+            if (lifted) Ui.Fill(g, r, S(10), p.Sel);
+            Ui.Stroke(g, r, S(10), lifted ? p.Accent : p.Stroke, Math.Max(1f, s));
+            // greep om te slepen
+            RectangleF grip = new RectangleF(r.X, r.Y, S(40), r.Height);
+            Ui.Icon(g, "grip", new RectangleF(grip.X + S(10), r.Y + (r.Height - S(20)) / 2, S(20), S(20)), p.T3, 2.6f);
+            Color ic = on ? p.T1 : p.T3;
+            Ui.ActionIcon(g, a, new RectangleF(r.X + S(42), r.Y + (r.Height - S(20)) / 2, S(20), S(20)), ic);
+            using (Font f = Ui.F(14, s, false)) Ui.Text(g, Lang.ActionName(a), f, ic, new RectangleF(r.X + S(74), r.Y, r.Width * 0.5f, r.Height), -1);
+            if (number > 0)
+            {
+                RectangleF kb = new RectangleF(r.Right - S(130), r.Y + (r.Height - S(24)) / 2, S(24), S(24));
+                Ui.Key(g, number.ToString(), kb, s, Color.FromArgb(p.Dark ? 70 : 60, p.T1), p.T2);
+            }
+            RectangleF area = new RectangleF(r.Right - S(96), r.Y, S(80), r.Height);
+            if (lifted) return;
+            // aan of uit; minstens een optie moet aan blijven
+            Toggle(g, p, area, on, "mt" + index, delegate
+            {
+                if (on && st.MenuActions().Count <= 1) return;
+                if (on) st.Hidden.Add(a); else st.Hidden.Remove(a);
+                st.FixDefault();
+                Usage.Count("menu." + (on ? "uit." : "aan.") + Lang.Key(a));
+                app.SettingsChanged();
+            });
+            hits.Insert(0, new Hit { R = new RectangleF(r.X, r.Y, r.Width - S(100), r.Height), Id = "drag" + index, Do = delegate { } });
+        }
+
+        // Slepen: muis omlaag op een regel, bewegen, loslaten
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (Page != MenuPage || e.Button != MouseButtons.Left) return;
+            Hit h = HitAt(e.Location);
+            if (h == null || !h.Id.StartsWith("drag")) return;
+            dragIndex = int.Parse(h.Id.Substring(4));
+            dragOffset = e.Y - (menuTop + dragIndex * S(RowStep));
+            dragY = e.Y;
+            dragMoved = false;
+            Capture = true;
+            Invalidate();
+        }
+
+        void DragMove(int mouseY)
+        {
+            Settings st = Settings.Current;
+            dragY = mouseY;
+            int target = (int)Math.Floor((mouseY - dragOffset - menuTop + S(RowStep) / 2) / S(RowStep));
+            target = Math.Max(0, Math.Min(st.Order.Count - 1, target));
+            if (target != dragIndex)
+            {
+                PowerAction a = st.Order[dragIndex];
+                st.Order.RemoveAt(dragIndex);
+                st.Order.Insert(target, a);
+                dragIndex = target;
+                dragMoved = true;
+                app.SettingsChanged();   // Dusk ernaast verandert meteen mee
+            }
+            Invalidate();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (dragIndex < 0) return;
+            dragIndex = -1;
+            Capture = false;
+            if (dragMoved) { Usage.Count("menu.gesleept"); app.SettingsChanged(); }
+            Invalidate();
         }
 
         void PageLook(Graphics g, Palette p, float x, float y, float w)
@@ -514,9 +615,10 @@ namespace Dusk
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+            if (dragIndex >= 0) { Cursor = Cursors.SizeNS; DragMove(e.Y); return; }
             Hit h = HitAt(e.Location);
             string id = h != null ? h.Id : null;
-            Cursor = h != null ? Cursors.Hand : Cursors.Default;
+            Cursor = h == null ? Cursors.Default : h.Id.StartsWith("drag") ? Cursors.SizeNS : Cursors.Hand;
             if (id != hover) { hover = id; Invalidate(); }
         }
 

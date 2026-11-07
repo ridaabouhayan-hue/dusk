@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -10,14 +11,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.3.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.3.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.4.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.4.0.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.3.2";
+        public const string Version = "1.4.0";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -83,7 +84,7 @@ namespace Dusk
             Shot(dir, "05-tijd-kiezen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Picker, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
             Shot(dir, "05b-eigen-vaste-tijd", true, "mica", "lila", delegate { Settings.Current.Presets.Add("23:30"); fl.TestSet(Flyout.View.Choose, 3, TimeChoice.At(23, 30), null, false); Bitmap b = Compose(fl, at); Settings.Current.Presets.Remove("23:30"); return b; });
             Shot(dir, "06-foutmelding", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 1, TimeChoice.Now, Lang.T("err.hibernate"), true); return Compose(fl, at); });
-            Shot(dir, "07-zes-opties", true, "mica", "roze", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 4, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at); Settings.Current.ShowLockLogoff = false; return b; });
+            Shot(dir, "07-zeven-opties", true, "mica", "roze", delegate { Settings.Current.Hidden.Clear(); fl.TestSet(Flyout.View.Choose, 4, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at); Settings.Current.Hidden = new List<PowerAction>(Settings.DefaultHidden); return b; });
 
             app.Scheduler.Start(PowerAction.Shutdown, DateTime.Now.AddMinutes(24).AddSeconds(12));
             Shot(dir, "08-timer-loopt", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
@@ -96,7 +97,7 @@ namespace Dusk
             Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
 
             Shot(dir, "15-kiezen-150-procent", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at, 1.5f); });
-            Shot(dir, "16-licht-150-procent", false, "mica", "lila", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at, 1.5f); Settings.Current.ShowLockLogoff = false; return b; });
+            Shot(dir, "16-licht-150-procent", false, "mica", "lila", delegate { Settings.Current.Hidden = new List<PowerAction> { PowerAction.Hibernate }; fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at, 1.5f); Settings.Current.Hidden = new List<PowerAction>(Settings.DefaultHidden); return b; });
             Shot(dir, "17-licht-effen-blauw", false, "solid", "blauw", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(30), null, false); return Compose(fl, at, 1.25f); });
             Settings.Current.Language = "en";
             Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), null, false); return Compose(fl, at); });
@@ -106,14 +107,15 @@ namespace Dusk
             Shot(dir, "14-spaans", true, "dusk", "lila", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.Now, null, false); return Compose(fl, at); });
             Settings.Current.Language = "nl";
 
-            for (int page = 0; page < 5; page++)
+            for (int page = 0; page < SettingsForm.PageCount; page++)
             {
                 int pg = page;
                 Shot(dir, "2" + page + "-instellingen-" + page, true, "mica", "lila", delegate { return SettingsShot(app, pg); });
             }
-            Shot(dir, "24-instellingen-uiterlijk-licht", false, "mica", "lila", delegate { return SettingsShot(app, 1); });
-            Shot(dir, "26-instellingen-algemeen-licht", false, "solid", "blauw", delegate { return SettingsShot(app, 0); });
-            Shot(dir, "25-instellingen-schemer", true, "dusk", "perzik", delegate { return SettingsShot(app, 2); });
+            Shot(dir, "27-instellingen-uiterlijk-licht", false, "mica", "lila", delegate { return SettingsShot(app, 2); });
+            Shot(dir, "28-instellingen-algemeen-licht", false, "solid", "blauw", delegate { return SettingsShot(app, 0); });
+            Shot(dir, "29-instellingen-schemer", true, "dusk", "perzik", delegate { return SettingsShot(app, 3); });
+            Shot(dir, "29b-menu-licht", false, "solid", "lila", delegate { Settings.Current.Hidden.Remove(PowerAction.SwitchUser); Bitmap b = SettingsShot(app, SettingsForm.MenuPage); Settings.Current.Hidden.Add(PowerAction.SwitchUser); return b; });
 
             // taakbalkicoontjes
             Shot(dir, "30-icoontjes", true, "solid", "lila", delegate { return Icons(); });

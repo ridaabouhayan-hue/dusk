@@ -147,7 +147,7 @@ namespace Dusk
         {
             Settings a = new Settings();
             a.Language = "fr"; a.Theme = "light"; a.Backdrop = "dusk"; a.Accent = "roze"; a.Hotkey = "Ctrl+Alt+End";
-            a.StepMinutes = 10; a.WarnMinutes = 5; a.DelaySeconds = 30; a.OpenAt = "last"; a.LastX = -1200; a.LastY = 300; a.Presets = new List<string> { "45", "23:30" }; a.Forced = true; a.ShowLockLogoff = true; a.DefaultAction = PowerAction.Lock;
+            a.StepMinutes = 10; a.WarnMinutes = 5; a.DelaySeconds = 30; a.OpenAt = "last"; a.LastX = -1200; a.LastY = 300; a.Presets = new List<string> { "45", "23:30" }; a.Forced = true; a.Hidden = new List<PowerAction> { PowerAction.Hibernate }; a.Order = new List<PowerAction> { PowerAction.SwitchUser, PowerAction.Shutdown, PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Lock, PowerAction.Logoff }; a.DefaultAction = PowerAction.Lock;
             a.Zoom = 130; a.TrackUsage = false;
             Settings b = Settings.Parse(a.Serialize());
             Eq(a.Serialize(), b.Serialize(), "heen en terug");
@@ -163,6 +163,18 @@ namespace Dusk
             Eq(10, e.DelaySeconds, "onbekende wachttijd");
             Eq("smart", e.OpenAt, "onbekende plek");
             Eq(100, Settings.Parse("grootte=250\n").Zoom, "onbekende grootte");
+            // menu: volgorde, verborgen, oude instelling, nooit leeg
+            Settings m1 = Settings.Parse("volgorde=shutdown,sleep,bestaatniet,sleep\nverborgen=hibernate\n");
+            Eq("shutdown,sleep,restart,lock,logoff,switchuser", string.Join(",", m1.MenuActions().ConvertAll(Lang.Key).ToArray()), "menu: volgorde, onbekend weg, ontbrekende achteraan");
+            Settings m2 = Settings.Parse("vergrendelen=1\n");
+            True(m2.MenuActions().Contains(PowerAction.Lock) && m2.MenuActions().Contains(PowerAction.Logoff), "oude instelling vergrendelen=1");
+            True(!m2.MenuActions().Contains(PowerAction.SwitchUser), "gebruiker wisselen standaard uit");
+            Settings m3 = Settings.Parse("verborgen=sleep,hibernate,restart,shutdown,lock,logoff,switchuser\nstandaard=0\n");
+            Eq(1, m3.MenuActions().Count, "menu nooit leeg");
+            Eq(PowerAction.Shutdown, m3.DefaultAction, "standaard staat in het menu");
+            Eq(4, new Settings().MenuActions().Count, "standaard vier opties");
+            Settings m4 = Settings.Parse("verborgen=\nstandaard=6\n");
+            Eq(PowerAction.SwitchUser, m4.DefaultAction, "gebruiker wisselen als standaard");
             Eq(115, Settings.Parse("grootte=115\n").Zoom, "grootte 115");
             Eq(true, new Settings().TrackUsage, "gebruik standaard aan");
             // gebruik: heen en terug, kapotte regels negeren

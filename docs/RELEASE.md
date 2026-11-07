@@ -1,17 +1,10 @@
-Dusk 1.3.2
-
-**Opgelost in 1.3.2**
-- Vette woorden (zoals de knop en de gekozen regel) zijn weer halfvet, zoals in Windows 11.
-- Tekst in het lichte thema is even krachtig als in het donkere.
-
-**Uit 1.3.0**
+Dusk 1.4.0
 
 **Nieuw**
-- Grootte kiezen bij Instellingen > Uiterlijk: klein, normaal, groot of extra groot. Het venster en Instellingen veranderen meteen mee. Dusk past zich daarnaast nog steeds vanzelf aan de schaal van je scherm aan.
-- Gebruik bijhouden (Instellingen > Over): Dusk telt op deze pc hoe vaak je iets gebruikt, zoals afsluiten, slaapstand, timers en vaste tijden, en houdt fouten bij in het logboek. Alles staat in de map die je opent met "Logboek en gebruik openen" (gebruik.txt en log.txt). Er gaat niets naar internet. Je kunt het uitzetten.
+- **Gebruiker wisselen**: je gaat naar het aanmeldscherm van Windows en kiest daar een andere gebruiker. Jouw programma's blijven gewoon open, net als bij "Gebruiker wisselen" in het startmenu.
+- **Instellingen > Menu**: zet per knop aan of uit wat je in Dusk wilt zien (Slaapstand, Sluimerstand, Opnieuw opstarten, Afsluiten, Vergrendelen, Afmelden, Gebruiker wisselen) en sleep ze aan de greep in de volgorde die jij wilt. De cijfers 1, 2, 3 volgen je volgorde. Dusk ernaast verandert meteen mee.
+- **Rechtsklikmenu van het taakbalkicoon**: daar staan nu dezelfde knoppen in dezelfde volgorde. Met het gewone aftellen, zodat je nog kunt stoppen.
 
-**Verbeterd**
-- Nieuwe manier van tekst zetten, voor elk thema en elke kleur: scherp en zonder gekleurde randjes, ook in het lichte thema.
-- Instellingen is rustiger: alleen titels, de uitlegregels eronder zijn weg.
+De oude instelling "Vergrendelen en afmelden tonen" zit nu in Menu; wat je had ingesteld blijft staan.
 
-**Bijwerken:** Instellingen > Bijwerken > Nu bijwerken. Heb je 1.2.1 of ouder, dan komt er nog een keer een vraag. Zie je die niet, klik dan in het Dusk-venster op het streepje rechtsboven en klik daarna op Ja.
+**Bijwerken:** Instellingen > Bijwerken > Nu bijwerken.

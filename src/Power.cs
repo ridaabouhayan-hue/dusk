@@ -5,7 +5,7 @@ using Microsoft.Win32;
 
 namespace Dusk
 {
-    public enum PowerAction { Sleep = 0, Hibernate = 1, Restart = 2, Shutdown = 3, Lock = 4, Logoff = 5 }
+    public enum PowerAction { Sleep = 0, Hibernate = 1, Restart = 2, Shutdown = 3, Lock = 4, Logoff = 5, SwitchUser = 6 }
 
     // Wat kan deze pc? Uitgelezen met GetPwrCapabilities (SYSTEM_POWER_CAPABILITIES).
     public struct PowerCaps
@@ -117,6 +117,10 @@ namespace Dusk
                         return null;
                     case PowerAction.Lock:
                         if (!W.LockWorkStation()) return Fail("LockWorkStation", "err.generic");
+                        return null;
+                    case PowerAction.SwitchUser:
+                        // Zoals "Gebruiker wisselen" in het startmenu: naar het aanmeldscherm, jouw programma's blijven open
+                        if (!W.WTSDisconnectSession(IntPtr.Zero, -1, false)) return Fail("WTSDisconnectSession", "err.generic");
                         return null;
                     default:
                         if (a != PowerAction.Logoff && !EnableShutdownPrivilege()) return "err.privilege";

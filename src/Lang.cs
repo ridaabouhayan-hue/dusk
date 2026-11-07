@@ -37,12 +37,16 @@ namespace Dusk
             "act.shutdown",
             "act.lock",
             "act.logoff",
+            "act.switchuser",
             "now.sleep",
             "now.hibernate",
             "now.restart",
             "now.shutdown",
             "now.lock",
             "now.logoff",
+            "now.switchuser",
+            "nav.menu",
+            "menu.hint",
             "in",
             "at",
             "now",
@@ -192,12 +196,16 @@ namespace Dusk
                 "Afsluiten",
                 "Vergrendelen",
                 "Afmelden",
+                "Gebruiker wisselen",
                 "Nu in slaapstand",
                 "Nu in sluimerstand",
                 "Nu opnieuw opstarten",
                 "Nu afsluiten",
                 "Nu vergrendelen",
                 "Nu afmelden",
+                "Nu gebruiker wisselen",
+                "Menu",
+                "Sleep om de volgorde te kiezen. Wat aan staat, zie je in Dusk.",
                 "over {0}",
                 "om {0}",
                 "Nu",
@@ -332,12 +340,16 @@ namespace Dusk
                 "Shut down",
                 "Lock",
                 "Sign out",
+                "Switch user",
                 "Sleep now",
                 "Hibernate now",
                 "Restart now",
                 "Shut down now",
                 "Lock now",
                 "Sign out now",
+                "Switch user now",
+                "Menu",
+                "Drag to change the order. What is on, shows in Dusk.",
                 "in {0}",
                 "at {0}",
                 "Now",
@@ -472,12 +484,16 @@ namespace Dusk
                 "Apagar",
                 "Bloquear",
                 "Cerrar sesión",
+                "Cambiar de usuario",
                 "Suspender ahora",
                 "Hibernar ahora",
                 "Reiniciar ahora",
                 "Apagar ahora",
                 "Bloquear ahora",
                 "Cerrar sesión ahora",
+                "Cambiar de usuario ahora",
+                "Menú",
+                "Arrastra para cambiar el orden. Lo activado aparece en Dusk.",
                 "en {0}",
                 "a las {0}",
                 "Ahora",
@@ -612,12 +628,16 @@ namespace Dusk
                 "Éteindre",
                 "Verrouiller",
                 "Se déconnecter",
+                "Changer d'utilisateur",
                 "Mettre en veille",
                 "Veille prolongée maintenant",
                 "Redémarrer maintenant",
                 "Éteindre maintenant",
                 "Verrouiller maintenant",
                 "Se déconnecter maintenant",
+                "Changer d'utilisateur maintenant",
+                "Menu",
+                "Faites glisser pour changer l'ordre. Ce qui est activé apparaît dans Dusk.",
                 "dans {0}",
                 "à {0}",
                 "Maintenant",
@@ -761,8 +781,16 @@ namespace Dusk
                 case PowerAction.Restart: return "restart";
                 case PowerAction.Lock: return "lock";
                 case PowerAction.Logoff: return "logoff";
+                case PowerAction.SwitchUser: return "switchuser";
                 default: return "shutdown";
             }
+        }
+
+        public static bool TryFromKey(string key, out PowerAction a)
+        {
+            foreach (PowerAction x in Settings.AllActions) if (Key(x) == key) { a = x; return true; }
+            a = PowerAction.Shutdown;
+            return false;
         }
 
         // "afsluiten", voor midden in een zin

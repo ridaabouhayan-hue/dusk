@@ -23,10 +23,49 @@ namespace Dusk
         public List<string> Presets = new List<string>(DefaultPresets);
         public bool UpdateCheck = true;         // melding als er een nieuwe versie is
         public bool Forced = false;
-        public bool ShowLockLogoff = false;
+        // Het menu in Dusk: alle opties in jouw volgorde, en welke uit staan
+        public List<PowerAction> Order = new List<PowerAction>(AllActions);
+        public List<PowerAction> Hidden = new List<PowerAction>(DefaultHidden);
         public PowerAction DefaultAction = PowerAction.Shutdown;
         public int Zoom = 100;                  // grootte van het venster en Instellingen, in procenten
         public bool TrackUsage = true;          // gebruik bijhouden in gebruik.txt (alleen op deze pc)
+
+        public static readonly PowerAction[] AllActions = { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Shutdown, PowerAction.Lock, PowerAction.Logoff, PowerAction.SwitchUser };
+        public static readonly PowerAction[] DefaultHidden = { PowerAction.Lock, PowerAction.Logoff, PowerAction.SwitchUser };
+
+        // Wat er in Dusk staat, in jouw volgorde. Nooit leeg: dan blijft Afsluiten staan.
+        public List<PowerAction> MenuActions()
+        {
+            List<PowerAction> l = new List<PowerAction>();
+            foreach (PowerAction a in Order) if (!Hidden.Contains(a)) l.Add(a);
+            if (l.Count == 0) l.Add(PowerAction.Shutdown);
+            return l;
+        }
+
+        // Zet de standaardkeuze op iets wat ook echt in het menu staat
+        public void FixDefault()
+        {
+            List<PowerAction> m = MenuActions();
+            if (!m.Contains(DefaultAction)) DefaultAction = m.Contains(PowerAction.Shutdown) ? PowerAction.Shutdown : m[0];
+        }
+
+        static string KeyList(List<PowerAction> l)
+        {
+            List<string> parts = new List<string>();
+            foreach (PowerAction a in l) parts.Add(Lang.Key(a));
+            return string.Join(",", parts.ToArray());
+        }
+
+        static List<PowerAction> FromKeys(string v)
+        {
+            List<PowerAction> l = new List<PowerAction>();
+            foreach (string part in v.Split(','))
+            {
+                PowerAction a;
+                if (Lang.TryFromKey(part.Trim(), out a) && !l.Contains(a)) l.Add(a);
+            }
+            return l;
+        }
 
         public static readonly string[] Languages = { "nl", "en", "es", "fr" };
         public static readonly int[] Steps = { 5, 10, 15, 30 };
@@ -63,7 +102,8 @@ namespace Dusk
             sb.AppendLine("vaste=" + string.Join(",", Presets.ToArray()));
             sb.AppendLine("bijwerken=" + (UpdateCheck ? "1" : "0"));
             sb.AppendLine("geforceerd=" + (Forced ? "1" : "0"));
-            sb.AppendLine("vergrendelen=" + (ShowLockLogoff ? "1" : "0"));
+            sb.AppendLine("volgorde=" + KeyList(Order));
+            sb.AppendLine("verborgen=" + KeyList(Hidden));
             sb.AppendLine("standaard=" + ((int)DefaultAction).ToString(C));
             sb.AppendLine("grootte=" + Zoom.ToString(C));
             sb.AppendLine("gebruik=" + (TrackUsage ? "1" : "0"));
@@ -75,6 +115,7 @@ namespace Dusk
         {
             Settings s = new Settings();
             if (string.IsNullOrEmpty(text)) return s;
+            bool oldLock = false, hiddenSeen = false;
             foreach (string raw in text.Split('\n'))
             {
                 string line = raw.Trim();
@@ -117,12 +158,21 @@ namespace Dusk
                         }
                     case "geforceerd": s.Forced = v == "1"; break;
                     case "bijwerken": s.UpdateCheck = v != "0"; break;
-                    case "vergrendelen": s.ShowLockLogoff = v == "1"; break;
-                    case "standaard": if (isNum && n >= 0 && n <= 5) s.DefaultAction = (PowerAction)n; break;
+                    case "vergrendelen": oldLock = v == "1"; break;   // van voor versie 1.4
+                    case "volgorde":
+                        {
+                            List<PowerAction> o = FromKeys(v);
+                            foreach (PowerAction a in AllActions) if (!o.Contains(a)) o.Add(a);   // nieuwe opties achteraan
+                            s.Order = o;
+                            break;
+                        }
+                    case "verborgen": s.Hidden = FromKeys(v); hiddenSeen = true; break;
+                    case "standaard": if (isNum && n >= 0 && n <= 6) s.DefaultAction = (PowerAction)n; break;
                 }
             }
-            if (!s.ShowLockLogoff && (s.DefaultAction == PowerAction.Lock || s.DefaultAction == PowerAction.Logoff))
-                s.DefaultAction = PowerAction.Shutdown;
+            // oud instellingenbestand: "vergrendelen en afmelden tonen" stond aan
+            if (!hiddenSeen && oldLock) { s.Hidden.Remove(PowerAction.Lock); s.Hidden.Remove(PowerAction.Logoff); }
+            s.FixDefault();
             return s;
         }
 

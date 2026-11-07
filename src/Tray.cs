@@ -43,6 +43,14 @@ namespace Dusk
                 menu.Items.Add(Lang.F("tray.add", Settings.Current.StepMinutes), null, delegate { app.Scheduler.Add(Settings.Current.StepMinutes); });
                 menu.Items.Add(Lang.T("tray.cancel"), null, delegate { app.Scheduler.Cancel(); });
             }
+            // jouw knoppen uit Instellingen > Menu, in jouw volgorde
+            menu.Items.Add(new ToolStripSeparator());
+            foreach (PowerAction a in Settings.Current.MenuActions())
+            {
+                PowerAction act = a;
+                ToolStripItem it = menu.Items.Add(Lang.ActionName(a), null, delegate { Usage.Count("taakbalkmenu." + Lang.Key(act)); app.Flyout.StartNow(act); });
+                it.Enabled = Power.Available(a);
+            }
             if (app.PendingUpdate != null)
                 menu.Items.Add(Lang.F("tray.update", app.PendingUpdate.Version), null, delegate { app.OpenSettings(SettingsForm.UpdatePage); });
             menu.Items.Add(new ToolStripSeparator());

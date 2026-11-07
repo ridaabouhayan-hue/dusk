@@ -10,7 +10,7 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 
 ## Ontwerp (gekozen in het design canvas, november 2026)
 - Hoofdscherm "B1+": venster rechtsonder bij de taakbalk, 352 punten breed, hoeken van 12, zachte schaduw.
-- Vier opties onder elkaar met de cijfers 1 tot 4 (vergrendelen en afmelden als 5 en 6, optioneel).
+- Opties onder elkaar met cijfers. Standaard vier (slaapstand, sluimerstand, opnieuw opstarten, afsluiten); vergrendelen, afmelden en gebruiker wisselen kun je aanzetten. In Instellingen > Menu kies je welke en sleep je de volgorde (`Settings.Order`, `Settings.Hidden`). Het rechtsklikmenu van het taakbalkicoon volgt dezelfde lijst.
 - Venster is in elke stand even groot (kiezen, timer, aftellen, tijd kiezen).
 - Timer: standaard Nu, + en − in stappen (standaard 15 min), vaste tijden 15 min, 30 min, 1 uur, 2 uur plus eigen vaste tijden via + (max 5). Geen "Wanneer"-label.
 - Tijd kiezen met twee draaiwieltjes (uren, minuten), "Over" of "Om", scrollen, pijltjes of typen.
