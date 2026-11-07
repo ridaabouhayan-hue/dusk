@@ -102,8 +102,13 @@ namespace Dusk
             Eq("0:00", TimeInput.Clock(TimeSpan.FromSeconds(-3)), "nooit negatief");
             Eq("Nu", TimeInput.Label(TimeChoice.Now), "label nu");
             Eq("45 min", TimeInput.Label(TimeChoice.After(45)), "45 min");
-            Eq("1 u", TimeInput.Label(TimeChoice.After(60)), "1 u");
-            Eq("1 u 30 min", TimeInput.Label(TimeChoice.After(90)), "1 u 30");
+            Eq("1 uur", TimeInput.Label(TimeChoice.After(60)), "1 uur");
+            Eq("1 uur 30 min", TimeInput.Label(TimeChoice.After(90)), "1 uur 30");
+            Eq(90, TimeInput.FromPicker(false, 1, 30).Minutes, "wieltjes over");
+            True(TimeInput.FromPicker(true, 23, 45).IsClock, "wieltjes om");
+            Eq(true, TimeInput.FromPicker(false, 0, 0).IsNow, "wieltjes nul is nu");
+            Eq("23:30", TimeInput.PresetText(TimeChoice.At(23, 30)), "vaste knop tijdstip");
+            Eq("90", TimeInput.PresetText(TimeChoice.After(90)), "vaste knop minuten");
             Eq("07:05", TimeInput.Label(TimeChoice.At(7, 5)), "07:05");
         }
 
@@ -141,7 +146,7 @@ namespace Dusk
         {
             Settings a = new Settings();
             a.Language = "fr"; a.Theme = "light"; a.Backdrop = "dusk"; a.Accent = "roze"; a.Hotkey = "Ctrl+Alt+End";
-            a.StepMinutes = 10; a.WarnMinutes = 5; a.UndoSeconds = 0; a.Forced = true; a.ShowLockLogoff = true; a.DefaultAction = PowerAction.Lock;
+            a.StepMinutes = 10; a.WarnMinutes = 5; a.DelaySeconds = 30; a.OpenAt = "last"; a.LastX = -1200; a.LastY = 300; a.Presets = new List<string> { "45", "23:30" }; a.Forced = true; a.ShowLockLogoff = true; a.DefaultAction = PowerAction.Lock;
             Settings b = Settings.Parse(a.Serialize());
             Eq(a.Serialize(), b.Serialize(), "heen en terug");
             Settings c = Settings.Parse("taal=xx\nthema=paars\nstap=7\nsneltoets=Q\nkapot\n=leeg\nstandaard=4\n");
@@ -151,6 +156,15 @@ namespace Dusk
             Eq(d.Hotkey, c.Hotkey, "ongeldige sneltoets");
             Eq(PowerAction.Shutdown, c.DefaultAction, "vergrendelen zonder de optie aan");
             Eq(d.Serialize(), Settings.Parse(null).Serialize(), "leeg bestand");
+            Settings e = Settings.Parse("vaste=15,abc,15,0,23:30,60,90,120,240\nwachttijd=7\nopenen=boven\n");
+            Eq("15,23:30,60,90,120", string.Join(",", e.Presets.ToArray()), "vaste tijden: geldig, uniek, max 5");
+            Eq(10, e.DelaySeconds, "onbekende wachttijd");
+            Eq("smart", e.OpenAt, "onbekende plek");
+            DateTime now = new DateTime(2026, 11, 7, 17, 0, 0);
+            Eq("Na Enter: 10 seconden aftellen, dan afsluiten", Lang.Info(PowerAction.Shutdown, TimeChoice.Now, 10, now), "info aftellen");
+            Eq("Na Enter: meteen vergrendelen", Lang.Info(PowerAction.Lock, TimeChoice.Now, 0, now), "info meteen");
+            Eq("Afsluiten over 30 min, om 17:30", Lang.Info(PowerAction.Shutdown, TimeChoice.After(30), 10, now), "info timer");
+            Eq("Slaapstand om 23:30, over 6 uur 30 min", Lang.Info(PowerAction.Sleep, TimeChoice.At(23, 30), 10, now), "info tijdstip");
         }
 
         static void PowerFlags()

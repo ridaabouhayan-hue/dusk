@@ -7,10 +7,11 @@ using System.Windows.Forms;
 
 namespace Dusk
 {
-    // Het hoofdvenster rechtsonder bij de taakbalk. Tekent zichzelf helemaal (zachte hoeken, schaduw, Mica).
+    // Het hoofdvenster. Tekent zichzelf helemaal (zachte hoeken, schaduw, Mica) en is in elke stand even groot.
     public class Flyout : Form
     {
-        public enum View { Choose, Running, Undo }
+        public enum View { Choose, Running, Undo, Picker }
+        public enum Origin { Tray, Hotkey, Launch, Passive }
 
         const int PanelW = 352, Pad = 12, Margin_ = 18;   // logische punten; Margin_ is ruimte voor de schaduw
 
@@ -19,18 +20,22 @@ namespace Dusk
         float s = 1f;                         // schaal van het scherm (125% = 1,25)
         int selected = 3;
         TimeChoice choice = TimeChoice.Now;
-        string fieldText = "";
-        bool fieldFocus, fieldSelectAll;
         string message; bool messageIsError;
         string hover, press;
         readonly List<KeyValuePair<RectangleF, string>> zones = new List<KeyValuePair<RectangleF, string>>();
-        public DateTime LastAutoHide = DateTime.MinValue;
         bool passive;                         // getoond zonder je toetsenbord over te nemen (waarschuwing)
         DateTime undoEnd;
         PowerAction undoAction;
         readonly Timer anim = new Timer();
-        Rectangle panelOnScreen;
-        public static readonly int[] Presets = { 15, 30, 45, 60, 120 };
+        Point panelPos;                       // linksboven van het vlak op het scherm
+        bool anchorBottom;                    // bij de taakbalk: groeit naar boven
+        public DateTime LastAutoHide = DateTime.MinValue;
+
+        // draaiwieltjes voor de tijd
+        bool pickAt; int pickH, pickM, pickCol; string pickBuf = ""; bool pickForPreset;
+
+        // venster verslepen
+        bool dragging; Point dragStart, dragPanelStart;
 
         public Flyout(App app)
         {
@@ -57,7 +62,7 @@ namespace Dusk
 
         protected override bool ShowWithoutActivation { get { return passive; } }
 
-        // ---------------------------------------------------------------- welke opties staan er in het menu
+        // ---------------------------------------------------------------- opties in het menu
         public List<PowerAction> Actions()
         {
             List<PowerAction> l = new List<PowerAction> { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Shutdown };
@@ -77,19 +82,24 @@ namespace Dusk
             selected = i >= 0 ? i : 3;
             if (!Power.Available(SelectedAction)) selected = l.IndexOf(PowerAction.Shutdown);
             choice = TimeChoice.Now;
-            fieldText = TimeInput.Label(choice);
-            fieldFocus = false; fieldSelectAll = false;
             message = null;
             hover = null; press = null;
         }
 
+        List<TimeChoice> Presets()
+        {
+            List<TimeChoice> l = new List<TimeChoice>();
+            foreach (string p in Settings.Current.Presets) { TimeChoice t = TimeInput.Parse(p); if (t.Valid && !t.IsNow) l.Add(t); }
+            return l;
+        }
+
         // ---------------------------------------------------------------- tonen en verbergen
-        public void ShowFlyout(bool activate)
+        public void ShowFlyout(bool activate, Origin origin)
         {
             if (app.Scheduler.Active) Mode = View.Running;
-            else if (Mode != View.Undo) { Mode = View.Choose; if (!Visible) ResetChoice(); }
+            else if (Mode != View.Undo) { if (!Visible) { Mode = View.Choose; ResetChoice(); } else if (Mode == View.Running) Mode = View.Choose; }
             passive = !activate;
-            Place();
+            if (!Visible) Place(origin);
             Render();
             if (!Visible) Show();
             W.SetWindowPos(Handle, W.HWND_TOPMOST, 0, 0, 0, 0, W.SWP_NOMOVE | W.SWP_NOSIZE | (activate ? 0 : W.SWP_NOACTIVATE));
@@ -105,39 +115,53 @@ namespace Dusk
         public void HideFlyout()
         {
             if (Mode == View.Undo) { anim.Stop(); Mode = View.Choose; }
-            passive = false;
+            if (Mode == View.Picker) Mode = View.Choose;
+            passive = false; dragging = false;
             Hide();
         }
 
         protected override void OnDeactivate(EventArgs e)
         {
             base.OnDeactivate(e);
-            // Klik je ergens anders, dan gaat het venster weg (zoals bij de klok of het volume van Windows).
-            // Tijdens de 5 tellen van "Nu" blijft het staan, zodat je kunt zien wat er gaat gebeuren.
-            if (Mode != View.Undo && !app.SettingsOpen) { HideFlyout(); LastAutoHide = DateTime.UtcNow; }
+            // Klik je ergens anders, dan gaat het venster weg (zoals de klok of het volume van Windows).
+            // Tijdens het aftellen blijft het staan, zodat je ziet wat er gaat gebeuren.
+            if (Mode != View.Undo && !app.SettingsOpen && !menuOpen) { HideFlyout(); LastAutoHide = DateTime.UtcNow; }
         }
 
-        int ContentHeight()
+        // Altijd even groot, in elke stand: dan springt er niets als je wisselt
+        int Height_() { int n = Actions().Count; return Pad + 48 + n * 48 + (n - 1) * 2 + 17 + 36 + 8 + 30 + 10 + 20 + 10 + 40 + Pad; }
+        float BtnY { get { return Height_() - Pad - 40; } }
+        float InfoY { get { return BtnY - 10 - 20; } }
+        float ChipsY { get { return InfoY - 10 - 30; } }
+        float TimeY { get { return ChipsY - 8 - 36; } }
+
+        // Waar komt het venster? Bij de taakbalk, in het midden, of waar je hem het laatst neerzette.
+        void Place(Origin origin)
         {
-            switch (Mode)
+            string mode = Settings.Current.OpenAt;
+            bool tray = mode == "tray" || (mode == "smart" && (origin == Origin.Tray || origin == Origin.Passive));
+            if (origin == Origin.Passive && mode != "last") tray = mode != "center";
+            Screen scr = tray || mode == "last" ? Screen.PrimaryScreen : Screen.FromPoint(Cursor.Position);
+            if (mode == "last" && Settings.Current.LastX != int.MinValue)
             {
-                case View.Running:
-                    return Pad + 48 + 168 + ((app.Scheduler.Warned || message != null) ? 24 : 0) + 12 + 40 + Pad;
-                case View.Undo:
-                    return Pad + 48 + 152 + 22 + 20 + 14 + 40 + Pad;
-                default:
-                    int n = Actions().Count;
-                    return Pad + 48 + n * 48 + (n - 1) * 2 + 17 + 36 + 10 + 30 + (message != null ? 26 : 0) + 14 + 40 + Pad;
+                Point p = new Point(Settings.Current.LastX, Settings.Current.LastY);
+                scr = Screen.FromPoint(p);
+                s = W.DpiScaleAt(p);
+                Rectangle wa0 = scr.WorkingArea;
+                int w0 = (int)Math.Round(PanelW * s), h0 = (int)Math.Round(Height_() * s);
+                panelPos = new Point(Math.Max(wa0.Left, Math.Min(wa0.Right - w0, p.X)), Math.Max(wa0.Top, Math.Min(wa0.Bottom - h0, p.Y)));
+                anchorBottom = false;
+                return;
             }
-        }
-
-        // Rechtsonder boven de taakbalk (of waar je taakbalk ook staat), op het hoofdscherm
-        void Place()
-        {
-            Screen scr = Screen.PrimaryScreen;
             Rectangle wa = scr.WorkingArea;
-            s = W.DpiScaleAt(new Point(wa.Right - 10, wa.Bottom - 10));
-            int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(ContentHeight() * s), gap = (int)Math.Round(12 * s);
+            s = W.DpiScaleAt(new Point(wa.Left + wa.Width / 2, wa.Top + wa.Height / 2));
+            int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(Height_() * s), gap = (int)Math.Round(12 * s);
+            if (!tray && mode != "last")
+            {
+                panelPos = new Point(wa.Left + (wa.Width - pw) / 2, wa.Top + (wa.Height - ph) / 2);
+                anchorBottom = false;
+                return;
+            }
             uint edge = 3;
             try
             {
@@ -148,7 +172,14 @@ namespace Dusk
             catch { }
             int x = edge == 0 ? wa.Left + gap : wa.Right - gap - pw;
             int y = edge == 1 ? wa.Top + gap : wa.Bottom - gap - ph;
-            panelOnScreen = new Rectangle(x, y, pw, ph);
+            panelPos = new Point(x, y);
+            anchorBottom = edge != 1;
+        }
+
+        Rectangle PanelOnScreen()
+        {
+            int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(Height_() * s);
+            return new Rectangle(panelPos.X, panelPos.Y, pw, ph);
         }
 
         // ---------------------------------------------------------------- tekenen
@@ -156,7 +187,7 @@ namespace Dusk
         {
             s = scale;
             int m = (int)Math.Round(Margin_ * s);
-            int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(ContentHeight() * s);
+            int pw = (int)Math.Round(PanelW * s), ph = (int)Math.Round(Height_() * s);
             Bitmap bmp = new Bitmap(pw + 2 * m, ph + 2 * m, PixelFormat.Format32bppArgb);
             Palette p = Palette.Current();
             zones.Clear();
@@ -177,13 +208,13 @@ namespace Dusk
                     {
                         case View.Running: DrawRunning(g, p); break;
                         case View.Undo: DrawUndo(g, p); break;
+                        case View.Picker: DrawPicker(g, p); break;
                         default: DrawChoose(g, p); break;
                     }
                     g.Restore(st);
                 }
                 Ui.Stroke(g, panel, rad, p.Border, Math.Max(1f, s));
             }
-            // zones staan in panelcoordinaten; verschuif ze naar het venster
             for (int i = 0; i < zones.Count; i++)
             {
                 RectangleF r = zones[i].Key; r.Offset(m, m);
@@ -194,19 +225,24 @@ namespace Dusk
 
         float S(float v) { return v * s; }
         RectangleF R(float x, float y, float w, float h) { return new RectangleF(x * s, y * s, w * s, h * s); }
-
         void Zone(RectangleF r, string id) { zones.Add(new KeyValuePair<RectangleF, string>(r, id)); }
-
         Color Hot(string id, Color normal, Color hot) { return hover == id ? hot : normal; }
 
         void DrawHeader(Graphics g, Palette p)
         {
+            Zone(R(0, 0, PanelW - Pad - 44, Pad + 40), "drag");   // aan de bovenkant kun je het venster verslepen
             Ui.Logo(g, R(Pad + 8, Pad + 8, 20, 20), p.Dark ? Color.FromArgb(224, 231, 255) : Color.FromArgb(55, 48, 163), 4.5f, 1f, Color.Empty);
             using (Font f = Ui.F(14, s, true)) Ui.Text(g, "Dusk", f, p.T1, R(Pad + 38, Pad + 2, 160, 32), -1);
             RectangleF gear = R(PanelW - Pad - 4 - 36, Pad + 2, 36, 36);
             Ui.Fill(g, gear, S(8), Hot("gear", p.Fill, p.Sel));
-            Ui.Icon(g, "gear", new RectangleF(gear.X + S(9.5f), gear.Y + S(9.5f), S(17), S(17)), p.T2, 1.6f);
+            Ui.Icon(g, "gear", new RectangleF(gear.X + S(8), gear.Y + S(8), S(20), S(20)), p.T2, 1.6f);
             Zone(gear, "gear");
+        }
+
+        // De regel boven de knop: wat er gebeurt als je op Enter drukt (of een foutmelding)
+        void DrawInfo(Graphics g, Palette p, string text, bool error)
+        {
+            using (Font f = Ui.F(12, s, error)) Ui.Text(g, text, f, error ? p.Danger : p.T2, R(Pad, InfoY, PanelW - 2 * Pad, 20), 0);
         }
 
         void DrawChoose(Graphics g, Palette p)
@@ -222,73 +258,74 @@ namespace Dusk
                 for (int i = 0; i < acts.Count; i++)
                 {
                     PowerAction a = acts[i];
-                    bool sel = i == selected && !fieldFocus;
-                    bool selDim = i == selected && fieldFocus;
+                    bool sel = i == selected;
                     bool ok = Power.Available(a);
                     RectangleF row = R(x, y, w, 48);
                     string id = "row" + i;
-                    Color bg = sel ? p.Sel : selDim ? p.Fill : (hover == id && ok ? p.Fill : Color.Transparent);
-                    Ui.Fill(g, row, S(8), bg);
-                    if (i == selected) Ui.Fill(g, R(x, y + 15, 3, 18), S(1.5f), p.Accent);
+                    Ui.Fill(g, row, S(8), sel ? p.Sel : (hover == id && ok ? p.Fill : Color.Transparent));
+                    if (sel) Ui.Fill(g, R(x, y + 15, 3, 18), S(1.5f), p.Accent);
                     Color tc = ok ? p.T1 : p.T3;
-                    Ui.Icon(g, Ui.IconFor(a), R(x + 14, y + 14.5f, 19, 19), tc, i == selected ? 1.8f : 1.6f);
-                    Ui.Text(g, Lang.ActionName(a), i == selected ? fb : f, tc, R(x + 47, y, w - 47 - 44, 48), -1);
-                    if (!ok) Ui.Text(g, Lang.T("unavailable"), fs, p.T3, R(x + 120, y, w - 120 - 44, 48), 1);
+                    Ui.ActionIcon(g, a, R(x + 13, y + 13, 22, 22), sel ? p.Accent : tc);
+                    Ui.Text(g, Lang.ActionName(a), sel ? fb : f, tc, R(x + 47, y, w - 47 - 44, 48), -1);
+                    if (!ok) Ui.Text(g, Lang.T("unavailable"), fs, p.T3, R(x + 150, y, w - 150 - 44, 48), 1);
                     Ui.Key(g, (i + 1).ToString(), R(x + w - 10 - 24, y + 12, 24, 24), s,
-                        i == selected ? Color.FromArgb(p.Dark ? 80 : 90, p.T1) : p.Stroke.A > 0 ? Color.FromArgb(p.Dark ? 40 : 46, p.T1) : p.Stroke,
-                        i == selected ? p.T1 : p.T3);
+                        Color.FromArgb(sel ? (p.Dark ? 80 : 90) : (p.Dark ? 40 : 46), p.T1), sel ? p.T1 : p.T3);
                     Zone(row, id);
                     y += 50;
                 }
             }
-            y -= 2;
-            // scheidingslijn
-            using (SolidBrush b = new SolidBrush(p.Stroke)) g.FillRectangle(b, R(Pad + 4, y + 8, PanelW - 2 * Pad - 8, 1f / s * Math.Max(1f, s)));
-            y += 17;
+            using (SolidBrush b = new SolidBrush(p.Stroke)) g.FillRectangle(b, Pad * s + S(4), (TimeY - 9) * s, (PanelW - 2 * Pad - 8) * s, Math.Max(1f, s));
 
-            // Wanneer: [−] [ Nu ] [+]
-            using (Font f = Ui.F(13, s, false)) Ui.Text(g, Lang.T("when"), f, p.T2, R(Pad + 4, y, 120, 36), -1);
-            float right = PanelW - Pad - 4;
-            RectangleF plus = R(right - 36, y, 36, 36), field = R(right - 36 - 8 - 112, y, 112, 36), minus = R(right - 36 - 8 - 112 - 8 - 36, y, 36, 36);
+            // [−] [ Nu ] [+]
+            float right = PanelW - Pad - 4, left = Pad + 4;
+            RectangleF minus = R(left, TimeY, 36, 36), plus = R(right - 36, TimeY, 36, 36);
+            RectangleF field = R(left + 36 + 8, TimeY, right - left - 2 * 36 - 16, 36);
             DrawSmallButton(g, p, minus, "minus", "minus");
             DrawSmallButton(g, p, plus, "plus", "plus");
-            DrawField(g, p, field);
-            y += 36 + 10;
+            Color bg = p.Dark ? Color.FromArgb(56, 0, 0, 0) : Color.FromArgb(200, 255, 255, 255);
+            Ui.Fill(g, field, S(8), hover == "field" ? Blend(bg, p.Dark ? Color.White : Color.Black, 0.04f) : bg);
+            Ui.Stroke(g, field, S(8), p.Stroke, Math.Max(1f, s));
+            using (GraphicsPath clip = Ui.Round(field, S(8)))
+            {
+                GraphicsState st = g.Save();
+                g.SetClip(clip, CombineMode.Intersect);
+                using (SolidBrush b = new SolidBrush(p.T3)) g.FillRectangle(b, field.X, field.Bottom - Math.Max(1f, s), field.Width, Math.Max(1f, s));
+                g.Restore(st);
+            }
+            using (Font f = Ui.F(14, s, true)) Ui.Text(g, TimeInput.Label(choice), f, p.T1, field, 0);
+            Zone(field, "field");
 
-            // vaste tijden
-            float cw = (PanelW - 2 * Pad - 8 - 4 * 6) / 5f;
+            // vaste tijden, en een + om er zelf een toe te voegen
+            List<TimeChoice> pre = Presets();
+            bool canAdd = pre.Count < Settings.MaxPresets;
+            int slots = Math.Max(1, pre.Count + (canAdd ? 1 : 0));
+            float cw = (PanelW - 2 * Pad - 8 - (slots - 1) * 6) / (float)slots;
             using (Font f = Ui.F(12, s, false))
             using (Font fb = Ui.F(12, s, true))
             {
-                for (int i = 0; i < Presets.Length; i++)
+                for (int i = 0; i < slots; i++)
                 {
-                    RectangleF c = R(Pad + 4 + i * (cw + 6), y, cw, 30);
-                    bool on = choice.Valid && !choice.IsClock && choice.Minutes == Presets[i];
-                    string id = "chip" + i;
+                    RectangleF c = R(left + i * (cw + 6), ChipsY, cw, 30);
+                    bool isAdd = i >= pre.Count;
+                    string id = isAdd ? "addpreset" : "chip" + i;
+                    bool on = !isAdd && Same(pre[i], choice);
                     Ui.Fill(g, c, S(6), on ? p.Sel : Hot(id, p.Fill, p.Sel));
                     Ui.Stroke(g, c, S(6), on ? Color.FromArgb(p.Dark ? 60 : 50, p.T1) : p.Stroke, Math.Max(1f, s));
-                    Ui.Text(g, TimeInput.Duration(Presets[i]), on ? fb : f, on ? p.T1 : p.T2, c, 0);
+                    if (isAdd) Ui.Icon(g, "plus", new RectangleF(c.X + c.Width / 2 - S(7), c.Y + c.Height / 2 - S(7), S(14), S(14)), p.T2, 2f);
+                    else Ui.Text(g, TimeInput.Label(pre[i]), on ? fb : f, on ? p.T1 : p.T2, c, 0);
                     Zone(c, id);
                 }
             }
-            y += 30;
-            if (message != null)
-            {
-                using (Font f = Ui.F(12, s, false)) Ui.Text(g, message, f, messageIsError ? p.Danger : p.T2, R(Pad + 4, y + 8, PanelW - 2 * Pad - 8, 18), 0);
-                y += 26;
-            }
-            y += 14;
-            DrawGo(g, p, R(Pad, y, PanelW - 2 * Pad, 40), Lang.Phrase(SelectedAction, CurrentChoiceForLabel()), "go", true);
+
+            if (message != null) DrawInfo(g, p, message, messageIsError);
+            else DrawInfo(g, p, Lang.Info(SelectedAction, choice, Settings.Current.DelaySeconds, DateTime.Now), false);
+            DrawGo(g, p, R(Pad, BtnY, PanelW - 2 * Pad, 40), choice.IsNow ? Lang.ActionName(SelectedAction) : Lang.T("btn.start"), "go", true);
         }
 
-        TimeChoice CurrentChoiceForLabel()
+        static bool Same(TimeChoice a, TimeChoice b)
         {
-            if (fieldFocus)
-            {
-                TimeChoice t = TimeInput.Parse(fieldText);
-                if (t.Valid) return t;
-            }
-            return choice;
+            if (!a.Valid || !b.Valid || a.IsClock != b.IsClock) return false;
+            return a.IsClock ? a.Hour == b.Hour && a.Minute == b.Minute : a.Minutes == b.Minutes;
         }
 
         void DrawSmallButton(Graphics g, Palette p, RectangleF r, string icon, string id)
@@ -299,40 +336,10 @@ namespace Dusk
             Zone(r, id);
         }
 
-        void DrawField(Graphics g, Palette p, RectangleF r)
-        {
-            Color bg = p.Dark ? Color.FromArgb(fieldFocus ? 80 : 56, 0, 0, 0) : Color.FromArgb(fieldFocus ? 255 : 200, 255, 255, 255);
-            Ui.Fill(g, r, S(8), bg);
-            Ui.Stroke(g, r, S(8), p.Stroke, Math.Max(1f, s));
-            // onderlijn: accentkleur als je erin typt, anders zacht
-            using (GraphicsPath clip = Ui.Round(r, S(8)))
-            {
-                GraphicsState st = g.Save();
-                g.SetClip(clip, CombineMode.Intersect);
-                float lh = fieldFocus ? S(2) : Math.Max(1f, s);
-                using (SolidBrush b = new SolidBrush(fieldFocus ? p.Accent : p.T3)) g.FillRectangle(b, r.X, r.Bottom - lh, r.Width, lh);
-                g.Restore(st);
-            }
-            string txt = fieldFocus ? fieldText : TimeInput.Label(choice);
-            using (Font f = Ui.F(14, s, true))
-            {
-                float tw = Ui.Width(g, txt, f);
-                if (fieldFocus && fieldSelectAll && txt.Length > 0)
-                    Ui.Fill(g, new RectangleF(r.X + (r.Width - tw) / 2 - S(3), r.Y + S(8), tw + S(6), r.Height - S(16)), S(3), Color.FromArgb(110, p.Accent));
-                Ui.Text(g, txt, f, p.T1, r, 0);
-                if (fieldFocus && !fieldSelectAll)
-                {
-                    float cx = r.X + (r.Width + tw) / 2 + S(2);
-                    using (Pen pen = new Pen(p.T1, Math.Max(1f, s))) g.DrawLine(pen, cx, r.Y + S(10), cx, r.Bottom - S(10));
-                }
-            }
-            Zone(r, "field");
-        }
-
         void DrawGo(Graphics g, Palette p, RectangleF r, string label, string id, bool showEnter)
         {
             Color c = p.Accent;
-            if (press == id) c = Blend(c, p.Dark ? Color.Black : Color.Black, 0.12f);
+            if (press == id) c = Blend(c, Color.Black, 0.12f);
             else if (hover == id) c = Blend(c, Color.White, p.Dark ? 0.10f : 0.08f);
             Ui.Fill(g, r, S(8), c);
             using (Font f = Ui.F(14, s, true))
@@ -341,8 +348,7 @@ namespace Dusk
                 float tw = Ui.Width(g, label, f);
                 float kw = showEnter ? Ui.Width(g, "Enter", fk) + S(12) : 0;
                 float gap = showEnter ? S(10) : 0;
-                float total = tw + gap + kw;
-                float x0 = r.X + (r.Width - total) / 2;
+                float x0 = r.X + (r.Width - (tw + gap + kw)) / 2;
                 Ui.Text(g, label, f, p.OnAccent, new RectangleF(x0 - S(2), r.Y, tw + S(4), r.Height), 0);
                 if (showEnter)
                 {
@@ -379,59 +385,204 @@ namespace Dusk
             }
         }
 
+        // Midden van het vrije vlak tussen de kop en de regel boven de knop
+        PointF Center(out float radius)
+        {
+            float top = Pad + 48, bottom = InfoY - 10;
+            radius = Math.Min(84, (bottom - top) / 2 - 12);
+            return new PointF(S(PanelW / 2f), S((top + bottom) / 2));
+        }
+
         void DrawRunning(Graphics g, Palette p)
         {
             DrawHeader(g, p);
             Scheduler sc = app.Scheduler;
-            float y = Pad + 48;
-            PointF c = new PointF(S(PanelW / 2f), S(y + 78));
-            Ring(g, p, c, S(70), S(6), sc.Fraction);
-            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.ActionName(sc.Action), f, p.T2, new RectangleF(c.X - S(70), c.Y - S(40), S(140), S(18)), 0);
-            using (Font f = Ui.Big(34, s)) Ui.Text(g, TimeInput.Clock(sc.Remaining), f, p.T1, new RectangleF(c.X - S(70), c.Y - S(22), S(140), S(44)), 0);
-            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.F("running.at", sc.Target.ToString("HH:mm")), f, p.T3, new RectangleF(c.X - S(70), c.Y + S(22), S(140), S(18)), 0);
-            y += 168;
-            if (sc.Warned || message != null)
-            {
-                string t = message ?? Lang.T("warn.save");
-                using (Font f = Ui.F(13, s, true)) Ui.Text(g, t, f, message != null && messageIsError ? p.Danger : p.T1, R(Pad, y, PanelW - 2 * Pad, 20), 0);
-                y += 24;
-            }
-            y += 12;
+            float r;
+            PointF c = Center(out r);
+            Ring(g, p, c, S(r), S(6), sc.Fraction);
+            Ui.ActionIcon(g, sc.Action, new RectangleF(c.X - S(11), c.Y - S(58), S(22), S(22)), p.Accent);
+            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.ActionName(sc.Action), f, p.T2, new RectangleF(c.X - S(80), c.Y - S(34), S(160), S(18)), 0);
+            using (Font f = Ui.Big(38, s)) Ui.Text(g, TimeInput.Clock(sc.Remaining), f, p.T1, new RectangleF(c.X - S(80), c.Y - S(18), S(160), S(46)), 0);
+            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.F("running.at", sc.Target.ToString("HH:mm")), f, p.T3, new RectangleF(c.X - S(80), c.Y + S(28), S(160), S(18)), 0);
+            if (message != null) DrawInfo(g, p, message, messageIsError);
+            else if (sc.Warned) DrawInfo(g, p, Lang.T("warn.save"), false);
             float bw = (PanelW - 2 * Pad - 2 * 8) / 3f;
-            DrawOutlineButton(g, p, R(Pad, y, bw, 40), Lang.F("btn.add", Settings.Current.StepMinutes), "add");
-            DrawOutlineButton(g, p, R(Pad + bw + 8, y, bw, 40), Lang.T("btn.cancel"), "cancel");
-            DrawGo(g, p, R(Pad + 2 * (bw + 8), y, bw, 40), Lang.T("btn.donow"), "donow", false);
+            DrawOutlineButton(g, p, R(Pad, BtnY, bw, 40), Lang.F("btn.add", Settings.Current.StepMinutes), "add");
+            DrawOutlineButton(g, p, R(Pad + bw + 8, BtnY, bw, 40), Lang.T("btn.cancel"), "cancel");
+            DrawGo(g, p, R(Pad + 2 * (bw + 8), BtnY, bw, 40), Lang.T("btn.donow"), "donow", false);
         }
 
         void DrawUndo(Graphics g, Palette p)
         {
             DrawHeader(g, p);
-            float y = Pad + 48;
             double left = Math.Max(0, (undoEnd - DateTime.Now).TotalSeconds);
-            float frac = (float)(left / Math.Max(1, Settings.Current.UndoSeconds));
-            PointF c = new PointF(S(PanelW / 2f), S(y + 70));
-            Ring(g, p, c, S(62), S(6), frac);
-            using (Font f = Ui.Big(44, s)) Ui.Text(g, Math.Ceiling(left).ToString("0"), f, p.T1, new RectangleF(c.X - S(60), c.Y - S(30), S(120), S(60)), 0);
-            y += 152;
-            using (Font f = Ui.F(14, s, true)) Ui.Text(g, Lang.Phrase(undoAction, TimeChoice.Now), f, p.T1, R(Pad, y, PanelW - 2 * Pad, 22), 0);
-            y += 22;
-            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.T("undo.hint"), f, p.T3, R(Pad, y, PanelW - 2 * Pad, 20), 0);
-            y += 20 + 14;
-            DrawOutlineButton(g, p, R(Pad, y, PanelW - 2 * Pad, 40), Lang.T("btn.cancel"), "undo.cancel");
+            float frac = (float)(left / Math.Max(1, Settings.Current.DelaySeconds));
+            float r;
+            PointF c = Center(out r);
+            Ring(g, p, c, S(r), S(6), frac);
+            Ui.ActionIcon(g, undoAction, new RectangleF(c.X - S(11), c.Y - S(58), S(22), S(22)), p.Accent);
+            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.ActionName(undoAction), f, p.T2, new RectangleF(c.X - S(80), c.Y - S(34), S(160), S(18)), 0);
+            using (Font f = Ui.Big(48, s)) Ui.Text(g, Math.Ceiling(left).ToString("0"), f, p.T1, new RectangleF(c.X - S(80), c.Y - S(20), S(160), S(56)), 0);
+            DrawInfo(g, p, Lang.T("undo.hint"), false);
+            float bw = (PanelW - 2 * Pad - 8) / 2f;
+            DrawOutlineButton(g, p, R(Pad, BtnY, bw, 40), Lang.T("btn.cancel"), "undo.cancel");
+            DrawGo(g, p, R(Pad + bw + 8, BtnY, bw, 40), Lang.T("btn.donow"), "undo.now", false);
         }
 
-        // Tekent opnieuw en zet het resultaat op het scherm
+        // Draaiwieltjes: uren en minuten, "over" of "om". Scrollen, pijltjes of gewoon typen.
+        void DrawPicker(Graphics g, Palette p)
+        {
+            DrawHeader(g, p);
+            float y = Pad + 52;
+            // Over | Om
+            float segW = 220, segX = (PanelW - segW) / 2;
+            RectangleF seg = R(segX, y, segW, 34);
+            Ui.Fill(g, seg, S(8), p.Fill);
+            Ui.Stroke(g, seg, S(8), p.Stroke, Math.Max(1f, s));
+            for (int i = 0; i < 2; i++)
+            {
+                RectangleF part = R(segX + 3 + i * (segW - 6) / 2, y + 3, (segW - 6) / 2, 28);
+                bool on = (i == 1) == pickAt;
+                if (on) Ui.Fill(g, part, S(6), p.Sel);
+                using (Font f = Ui.F(13, s, on)) Ui.Text(g, Lang.T(i == 0 ? "picker.in" : "picker.at"), f, on ? p.T1 : p.T2, part, 0);
+                Zone(part, "pmode" + i);
+            }
+            float top = y + 34 + 12, bottom = InfoY - 10;
+            float colW = 104, gapW = 28;
+            float cx = PanelW / 2f;
+            float midY = (top + bottom) / 2;
+            for (int col = 0; col < 2; col++)
+            {
+                float x = col == 0 ? cx - gapW / 2 - colW : cx + gapW / 2;
+                int val = col == 0 ? pickH : pickM;
+                int prev = Wrap(col, val, -1), next = Wrap(col, val, 1);
+                RectangleF area = R(x, top, colW, bottom - top);
+                Zone(area, "pcol" + col);
+                bool focus = pickCol == col;
+                RectangleF mid = R(x, midY - 30, colW, 60);
+                Ui.Fill(g, mid, S(10), focus ? p.Sel : p.Fill);
+                if (focus) Ui.Stroke(g, mid, S(10), p.Accent, S(1.5f));
+                string cur = pickCol == col && pickBuf.Length > 0 ? pickBuf : val.ToString("00");
+                using (Font fb = Ui.Big(36, s)) Ui.Text(g, cur, fb, p.T1, mid, 0);
+                using (Font fs = Ui.F(20, s, false))
+                {
+                    RectangleF up = R(x, midY - 30 - 46, colW, 40), dn = R(x, midY + 30 + 6, colW, 40);
+                    if (prev >= 0) Ui.Text(g, prev.ToString("00"), fs, p.T3, up, 0);
+                    if (next >= 0) Ui.Text(g, next.ToString("00"), fs, p.T3, dn, 0);
+                    Zone(up, "pup" + col); Zone(dn, "pdn" + col);
+                }
+                using (Font fl = Ui.F(11, s, false)) Ui.Text(g, Lang.T(col == 0 ? "picker.h" : "picker.m"), fl, p.T3, R(x, midY + 30 + 44, colW, 16), 0);
+            }
+            using (Font fc = Ui.Big(32, s)) Ui.Text(g, ":", fc, p.T2, R(cx - gapW / 2, midY - 30, gapW, 56), 0);
+            TimeChoice t = TimeInput.FromPicker(pickAt, pickH, pickM);
+            string info = pickForPreset ? Lang.F("picker.preset", TimeInput.Label(t)) : Lang.Info(SelectedAction, t, Settings.Current.DelaySeconds, DateTime.Now);
+            DrawInfo(g, p, info, false);
+            float bw = (PanelW - 2 * Pad - 8) / 2f;
+            DrawOutlineButton(g, p, R(Pad, BtnY, bw, 40), Lang.T("btn.cancel"), "pcancel");
+            DrawGo(g, p, R(Pad + bw + 8, BtnY, bw, 40), Lang.T("btn.done"), "pdone", true);
+        }
+
+        // Volgende of vorige waarde van een wieltje. Uren "over": 0 tot 24, zonder rondgaan.
+        int Wrap(int col, int val, int dir)
+        {
+            if (col == 1)
+            {
+                // minuten springen per 5 (typen kan elke minuut)
+                int v5 = dir > 0 ? (val / 5 + 1) * 5 : (val % 5 == 0 ? val - 5 : val / 5 * 5);
+                return (v5 % 60 + 60) % 60;
+            }
+            if (pickAt) return ((val + dir) % 24 + 24) % 24;
+            int v = val + dir;
+            return v < 0 || v > 24 ? -1 : v;
+        }
+
+        void PickStep(int col, int dir, bool big)
+        {
+            pickBuf = "";
+            if (col == 0) pickH = pickAt ? ((pickH + dir) % 24 + 24) % 24 : Math.Max(0, Math.Min(24, pickH + dir));
+            else
+            {
+                int step = big ? 5 : 1;
+                int m = pickM + dir * step;
+                if (big) m = dir > 0 ? (pickM / 5 + 1) * 5 : (pickM % 5 == 0 ? pickM - 5 : pickM / 5 * 5);
+                if (m >= 60) { m -= 60; if (!pickAt && pickH < 24) pickH++; else if (pickAt) pickH = (pickH + 1) % 24; }
+                if (m < 0) { m += 60; if (!pickAt && pickH > 0) pickH--; else if (pickAt) pickH = (pickH + 23) % 24; else m = 0; }
+                pickM = m;
+            }
+            if (!pickAt && pickH == 24) pickM = 0;
+        }
+
+        void OpenPicker(bool forPreset)
+        {
+            pickForPreset = forPreset;
+            pickBuf = ""; pickCol = 0;
+            if (choice.IsClock) { pickAt = true; pickH = choice.Hour; pickM = choice.Minute; }
+            else if (choice.Valid && choice.Minutes > 0) { pickAt = false; pickH = choice.Minutes / 60; pickM = choice.Minutes % 60; }
+            else
+            {
+                // standaard: om een rond tijdstip zo'n half uur van nu, of over 30 minuten
+                pickAt = false; pickH = 0; pickM = 30;
+            }
+            Mode = View.Picker;
+        }
+
+        void PickerToggleMode(bool at)
+        {
+            if (at == pickAt) return;
+            pickAt = at; pickBuf = "";
+            DateTime now = DateTime.Now;
+            if (at)
+            {
+                DateTime t = now.AddMinutes(30);
+                pickH = t.Hour; pickM = (t.Minute / 5) * 5;
+            }
+            else { pickH = 0; pickM = 30; }
+        }
+
+        void PickerDone()
+        {
+            CommitBuffer();
+            TimeChoice t = TimeInput.FromPicker(pickAt, pickH, pickM);
+            if (pickForPreset)
+            {
+                if (!t.IsNow)
+                {
+                    string txt = TimeInput.PresetText(t);
+                    List<string> l = Settings.Current.Presets;
+                    if (!l.Contains(txt) && l.Count < Settings.MaxPresets) { l.Add(txt); app.SettingsChanged(); }
+                    choice = t;
+                }
+            }
+            else choice = t;
+            Mode = View.Choose;
+        }
+
+        void CommitBuffer()
+        {
+            if (pickBuf.Length == 0) return;
+            int v = int.Parse(pickBuf);
+            if (pickCol == 0) pickH = pickAt ? Math.Min(23, v) : Math.Min(24, v);
+            else pickM = Math.Min(59, v);
+            if (!pickAt && pickH == 24) pickM = 0;
+            pickBuf = "";
+        }
+
+        // ---------------------------------------------------------------- op het scherm zetten
         public void Render()
         {
             if (!IsHandleCreated) CreateHandle();
-            Place();
-            int m = (int)Math.Round(Margin_ * s);
-            using (Bitmap bmp = Draw(s, panelOnScreen))
+            Rectangle pr = PanelOnScreen();
+            if (anchorBottom && Visible && lastHeight > 0 && lastHeight != pr.Height)
             {
-                Point pos = new Point(panelOnScreen.X - m, panelOnScreen.Y - m);
-                PushLayered(bmp, pos);
+                panelPos = new Point(panelPos.X, panelPos.Y + lastHeight - pr.Height);   // bij de taakbalk: onderkant blijft staan
+                pr = PanelOnScreen();
             }
+            lastHeight = pr.Height;
+            int m = (int)Math.Round(Margin_ * s);
+            using (Bitmap bmp = Draw(s, pr))
+                PushLayered(bmp, new Point(pr.X - m, pr.Y - m));
         }
+        int lastHeight;
 
         void PushLayered(Bitmap bmp, Point pos)
         {
@@ -467,42 +618,94 @@ namespace Dusk
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+            if (dragging)
+            {
+                Point c = Cursor.Position;
+                panelPos = new Point(dragPanelStart.X + c.X - dragStart.X, dragPanelStart.Y + c.Y - dragStart.Y);
+                anchorBottom = false;
+                Render();
+                return;
+            }
             string h = HitTest(e.Location);
-            Cursor = h != null ? (h == "field" ? Cursors.IBeam : Cursors.Hand) : Cursors.Default;
+            Cursor = h == null ? Cursors.Default : h == "drag" ? Cursors.SizeAll : h.StartsWith("pcol") ? Cursors.SizeNS : Cursors.Hand;
+            if (h == "drag" || (h != null && h.StartsWith("pcol"))) h = null;
             if (h != hover) { hover = h; Render(); }
         }
 
         protected override void OnMouseLeave(EventArgs e)
         {
             base.OnMouseLeave(e);
-            if (hover != null || press != null) { hover = null; press = null; Render(); }
+            if (!dragging && (hover != null || press != null)) { hover = null; press = null; Render(); }
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left) return;
-            press = HitTest(e.Location);
+            string h = HitTest(e.Location);
+            if (h == "drag")
+            {
+                dragging = true; dragStart = Cursor.Position; dragPanelStart = panelPos;
+                return;
+            }
+            press = h;
             if (press != null) Render();
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (e.Button != MouseButtons.Left) return;
+            if (dragging)
+            {
+                dragging = false;
+                if (Settings.Current.OpenAt == "last") { Settings.Current.LastX = panelPos.X; Settings.Current.LastY = panelPos.Y; app.SettingsChanged(); }
+                return;
+            }
             string h = HitTest(e.Location);
+            if (e.Button == MouseButtons.Right)
+            {
+                if (Mode == View.Choose && h != null && h.StartsWith("chip")) PresetMenu(int.Parse(h.Substring(4)), e.Location);
+                return;
+            }
+            if (e.Button != MouseButtons.Left) return;
             string was = press;
             press = null;
             if (h != null && h == was) ZoneClick(h);
             else Render();
         }
 
-        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        protected override void OnMouseWheel(MouseEventArgs e)
         {
-            base.OnMouseDoubleClick(e);
-            // dubbelklik op een optie: meteen uitvoeren
+            base.OnMouseWheel(e);
             string h = HitTest(e.Location);
-            if (Mode == View.Choose && h != null && h.StartsWith("row")) Go();
+            int dir = e.Delta > 0 ? -1 : 1;   // omhoog scrollen = vorige waarde (zoals bij een draaiwiel)
+            if (Mode == View.Picker && h != null && (h.StartsWith("pcol") || h.StartsWith("pup") || h.StartsWith("pdn")))
+            {
+                int col = h[h.Length - 1] - '0';
+                pickCol = col; PickStep(col, dir, true); Render();
+            }
+            else if (Mode == View.Choose && h == "field") { StepTime(-dir); Render(); }
+        }
+
+        bool menuOpen;
+
+        void PresetMenu(int index, Point at)
+        {
+            ContextMenuStrip m = new ContextMenuStrip();
+            Palette p = Palette.Current();
+            m.ShowImageMargin = false;
+            m.BackColor = p.Dark ? Color.FromArgb(44, 44, 46) : Color.FromArgb(249, 249, 249);
+            m.ForeColor = p.T1;
+            try { m.Font = new Font(Ui.Family, 9.5f); } catch { }
+            m.Items.Add(Lang.T("menu.remove"), null, delegate
+            {
+                List<string> l = Settings.Current.Presets;
+                if (index < l.Count) { l.RemoveAt(index); app.SettingsChanged(); }
+                Render();
+            }).ForeColor = p.T1;
+            menuOpen = true;
+            m.Closed += delegate { menuOpen = false; BeginInvoke((Action)delegate { m.Dispose(); }); };
+            m.Show(this, at);
         }
 
         void ZoneClick(string id)
@@ -515,12 +718,18 @@ namespace Dusk
                     if (id.StartsWith("row"))
                     {
                         int i = int.Parse(id.Substring(3));
-                        if (Power.Available(Actions()[i])) { selected = i; LeaveField(true); }
+                        if (Power.Available(Actions()[i])) selected = i;
                     }
-                    else if (id.StartsWith("chip")) { LeaveField(false); SetChoice(TimeChoice.After(Presets[int.Parse(id.Substring(4))])); }
+                    else if (id.StartsWith("chip"))
+                    {
+                        List<TimeChoice> pre = Presets();
+                        int i = int.Parse(id.Substring(4));
+                        if (i < pre.Count) choice = Same(choice, pre[i]) ? TimeChoice.Now : pre[i];   // nog een keer klikken = terug naar Nu
+                    }
+                    else if (id == "addpreset") OpenPicker(true);
                     else if (id == "minus") StepTime(-1);
                     else if (id == "plus") StepTime(1);
-                    else if (id == "field") { fieldFocus = true; fieldSelectAll = true; fieldText = TimeInput.Label(choice); }
+                    else if (id == "field") OpenPicker(false);
                     else if (id == "go") { Go(); return; }
                     break;
                 case View.Running:
@@ -530,6 +739,16 @@ namespace Dusk
                     break;
                 case View.Undo:
                     if (id == "undo.cancel") { CancelUndo(); return; }
+                    if (id == "undo.now") { anim.Stop(); app.Execute(undoAction, false); return; }
+                    break;
+                case View.Picker:
+                    if (id == "pmode0") PickerToggleMode(false);
+                    else if (id == "pmode1") PickerToggleMode(true);
+                    else if (id.StartsWith("pup")) { pickCol = id[3] - '0'; PickStep(pickCol, -1, pickCol == 1); }
+                    else if (id.StartsWith("pdn")) { pickCol = id[3] - '0'; PickStep(pickCol, 1, pickCol == 1); }
+                    else if (id.StartsWith("pcol")) { CommitBuffer(); pickCol = id[4] - '0'; }
+                    else if (id == "pcancel") Mode = View.Choose;
+                    else if (id == "pdone") PickerDone();
                     break;
             }
             Render();
@@ -561,32 +780,16 @@ namespace Dusk
                     if (k == Keys.Delete || k == Keys.Back) { app.Scheduler.Cancel(); Mode = View.Choose; ResetChoice(); Render(); return true; }
                     if (k == Keys.Enter) { app.Execute(app.Scheduler.Action, true); return true; }
                     return false;
+                case View.Picker:
+                    return PickerKey(k);
             }
             message = null;
-            if (fieldFocus)
-            {
-                if (k == Keys.Enter) { if (LeaveField(false)) Go(); else Render(); return true; }
-                if (k == Keys.Escape) { fieldFocus = false; fieldSelectAll = false; Render(); return true; }
-                if (k == Keys.Tab || k == Keys.Up || k == Keys.Down)
-                {
-                    LeaveField(true);
-                    if (k == Keys.Up) MoveSelection(-1); else if (k == Keys.Down) MoveSelection(1);
-                    Render(); return true;
-                }
-                if (plus || minus) { LeaveField(true); StepTime(plus ? 1 : -1); Render(); return true; }
-                if (k == Keys.Back)
-                {
-                    if (fieldSelectAll) fieldText = ""; else if (fieldText.Length > 0) fieldText = fieldText.Substring(0, fieldText.Length - 1);
-                    fieldSelectAll = false; Render(); return true;
-                }
-                return false;   // tekens gaan naar OnKeyPress
-            }
             if (k == Keys.Escape) { HideFlyout(); return true; }
             if (k == Keys.Up) { MoveSelection(-1); Render(); return true; }
             if (k == Keys.Down) { MoveSelection(1); Render(); return true; }
             if (k == Keys.Left || k == Keys.Right) { CyclePreset(k == Keys.Right ? 1 : -1); Render(); return true; }
             if (plus || minus) { StepTime(plus ? 1 : -1); Render(); return true; }
-            if (k == Keys.Tab) { fieldFocus = true; fieldSelectAll = true; fieldText = TimeInput.Label(choice); Render(); return true; }
+            if (k == Keys.Tab || k == Keys.Space) { OpenPicker(false); Render(); return true; }
             if (k == Keys.Enter) { Go(); return true; }
             int digit = -1;
             if (k >= Keys.D1 && k <= Keys.D9 && (keyData & Keys.Shift) == 0) digit = k - Keys.D1;
@@ -600,17 +803,32 @@ namespace Dusk
             return false;
         }
 
-        protected override void OnKeyPress(KeyPressEventArgs e)
+        bool PickerKey(Keys k)
         {
-            base.OnKeyPress(e);
-            if (Mode != View.Choose || !fieldFocus) return;
-            char c = e.KeyChar;
-            if (char.IsControl(c)) return;
-            if (!(char.IsLetterOrDigit(c) || c == ':' || c == '.' || c == ',' || c == ' ')) return;
-            if (fieldSelectAll) { fieldText = ""; fieldSelectAll = false; }
-            if (fieldText.Length < 10) fieldText += c;
-            e.Handled = true;
-            Render();
+            if (k == Keys.Escape) { Mode = View.Choose; Render(); return true; }
+            if (k == Keys.Enter) { PickerDone(); Render(); return true; }
+            if (k == Keys.Up) { PickStep(pickCol, -1, pickCol == 1); Render(); return true; }
+            if (k == Keys.Down) { PickStep(pickCol, 1, pickCol == 1); Render(); return true; }
+            if (k == Keys.Left || k == Keys.Right || k == Keys.Tab) { CommitBuffer(); pickCol = k == Keys.Left ? 0 : (k == Keys.Right ? 1 : 1 - pickCol); Render(); return true; }
+            if (k == Keys.Space) { PickerToggleMode(!pickAt); Render(); return true; }
+            if (k == Keys.Back) { pickBuf = pickBuf.Length > 0 ? pickBuf.Substring(0, pickBuf.Length - 1) : ""; Render(); return true; }
+            int d = -1;
+            if (k >= Keys.D0 && k <= Keys.D9) d = k - Keys.D0;
+            else if (k >= Keys.NumPad0 && k <= Keys.NumPad9) d = k - Keys.NumPad0;
+            if (d >= 0)
+            {
+                // typen: twee cijfers per wieltje, daarna door naar de minuten
+                pickBuf += d.ToString();
+                int max = pickCol == 0 ? (pickAt ? 23 : 24) : 59;
+                if (pickBuf.Length == 2 || int.Parse(pickBuf) * 10 > max)
+                {
+                    CommitBuffer();
+                    if (pickCol == 0) pickCol = 1;
+                }
+                Render();
+                return true;
+            }
+            return true;
         }
 
         void MoveSelection(int dir)
@@ -623,46 +841,29 @@ namespace Dusk
             }
         }
 
-        void SetChoice(TimeChoice t) { choice = t; fieldText = TimeInput.Label(t); }
+        void StepTime(int dir) { choice = TimeInput.Step(choice, Settings.Current.StepMinutes, dir, DateTime.Now); }
 
-        void StepTime(int dir) { LeaveField(false); SetChoice(TimeInput.Step(choice, Settings.Current.StepMinutes, dir, DateTime.Now)); }
-
+        // Links en rechts: Nu en dan de vaste tijden
         void CyclePreset(int dir)
         {
-            // Nu, 15, 30, 45, 60, 120 met links en rechts
-            int[] seq = { 0, 15, 30, 45, 60, 120 };
-            int cur = choice.Valid && !choice.IsClock ? Array.IndexOf(seq, choice.Minutes) : -1;
-            int next;
-            if (cur < 0) next = dir > 0 ? 1 : 0;
-            else next = Math.Max(0, Math.Min(seq.Length - 1, cur + dir));
-            SetChoice(TimeChoice.After(seq[next]));
-        }
-
-        // Uit het tijdvak gaan. Geldige tekst wordt de nieuwe tijd; ongeldig: melding (of terug naar de oude tijd).
-        bool LeaveField(bool revertIfBad)
-        {
-            if (!fieldFocus) return true;
-            TimeChoice t = TimeInput.Parse(fieldText);
-            fieldFocus = false; fieldSelectAll = false;
-            if (t.Valid) { SetChoice(t); return true; }
-            if (revertIfBad) { fieldText = TimeInput.Label(choice); return false; }
-            fieldFocus = true;
-            message = Lang.T("hint.time"); messageIsError = true;
-            return false;
+            List<TimeChoice> seq = new List<TimeChoice> { TimeChoice.Now };
+            seq.AddRange(Presets());
+            int cur = seq.FindIndex(t => Same(t, choice));
+            int next = cur < 0 ? (dir > 0 ? 1 : 0) : Math.Max(0, Math.Min(seq.Count - 1, cur + dir));
+            if (next < seq.Count) choice = seq[next];
         }
 
         // Enter of de grote knop
         void Go()
         {
-            if (!LeaveField(false)) { Render(); return; }
             PowerAction a = SelectedAction;
             if (!Power.Available(a)) { message = Lang.T(a == PowerAction.Hibernate ? "err.hibernate" : "err.sleep"); messageIsError = true; Render(); return; }
             if (choice.IsNow)
             {
-                if (Settings.Current.UndoSeconds > 0)
+                if (Settings.Current.DelaySeconds > 0)
                 {
                     undoAction = a;
-                    undoEnd = DateTime.Now.AddSeconds(Settings.Current.UndoSeconds);
+                    undoEnd = DateTime.Now.AddSeconds(Settings.Current.DelaySeconds);
                     Mode = View.Undo;
                     anim.Start();
                     Render();
@@ -677,12 +878,7 @@ namespace Dusk
 
         void UndoTick()
         {
-            if (DateTime.Now >= undoEnd)
-            {
-                anim.Stop();
-                app.Execute(undoAction, false);
-                return;
-            }
+            if (DateTime.Now >= undoEnd) { anim.Stop(); app.Execute(undoAction, false); return; }
             if (Visible) Render();
         }
 
@@ -694,11 +890,12 @@ namespace Dusk
         }
 
         // ---------------------------------------------------------------- voor de zelftest
-        public void TestSet(View v, int sel, TimeChoice t, bool focus, string text, string msg, bool err)
+        public void TestSet(View v, int sel, TimeChoice t, string msg, bool err)
         {
-            Mode = v; selected = sel; choice = t; fieldFocus = focus; fieldSelectAll = false; fieldText = text ?? TimeInput.Label(t);
+            Mode = v; selected = sel; choice = t;
             message = msg; messageIsError = err; hover = null;
-            undoAction = PowerAction.Shutdown; undoEnd = DateTime.Now.AddSeconds(3.4);
+            undoAction = PowerAction.Shutdown; undoEnd = DateTime.Now.AddSeconds(7.4);
+            if (v == View.Picker) { OpenPicker(false); pickAt = true; pickH = 23; pickM = 30; pickCol = 1; }
         }
 
         // Alt+F4 sluit het venster niet echt (dan zou Dusk stuk zijn), maar verbergt het

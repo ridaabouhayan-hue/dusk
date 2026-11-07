@@ -11,8 +11,13 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 ## Ontwerp (gekozen in het design canvas, november 2026)
 - Hoofdscherm "B1+": venster rechtsonder bij de taakbalk, 352 punten breed, hoeken van 12, zachte schaduw.
 - Vier opties onder elkaar met de cijfers 1 tot 4 (vergrendelen en afmelden als 5 en 6, optioneel).
-- Timer: standaard Nu, + en − in stappen (standaard 15 min), vaste tijden 15, 30, 45 min, 1 u, 2 u, zelf typen.
-- Eén knop die zegt wat er gebeurt ("Nu afsluiten", "Afsluiten over 30 min"), met Enter.
+- Venster is in elke stand even groot (kiezen, timer, aftellen, tijd kiezen).
+- Timer: standaard Nu, + en − in stappen (standaard 15 min), vaste tijden 15 min, 30 min, 1 uur, 2 uur plus eigen vaste tijden via + (max 5). Geen "Wanneer"-label.
+- Tijd kiezen met twee draaiwieltjes (uren, minuten), "Over" of "Om", scrollen, pijltjes of typen.
+- Korte knop ("Afsluiten" of "Start timer") met Enter; erboven een regel die zegt wat er gebeurt.
+- Aftellen bij Nu (standaard 10 seconden, instelbaar) zodat je nog kunt stoppen.
+- Openen: Slim (taakbalk bij klik op het icoon, anders midden), bij de taakbalk, midden, of laatste plek (verslepen aan de bovenkant).
+- Iconen: slaapstand een volle maan met zz, sluimerstand een sneeuwvlok (winterslaap), tandwiel voor instellingen.
 - Thema volgt Windows. Achtergrond: Mica (vervaagd bureaublad), effen of schemer. Accent standaard lila; geen groen.
 - Logo: concept 7 "Schemerring", een aan-uitknop met een ring die verloopt van oranje via roze naar paars, zonder sterretjes.
 
@@ -20,7 +25,7 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 - C# 5 met WinForms op .NET Framework 4.8 (zit in Windows). Geen nieuwere C#-taal gebruiken: `build/build.sh` controleert dat met Mono (`-langversion:5`).
 - Alles wordt zelf getekend. Het hoofdvenster is een gelaagd venster (UpdateLayeredWindow).
 - Stroom (`src/Power.cs`): SetSuspendState voor slaap en sluimer, maar bij Modern Standby het scherm uit (NtPowerInformation ScreenOff, zoals het startmenu). Nooit `rundll32 powrprof.dll,SetSuspendState`. Afsluiten met ExitWindowsEx, hybride als Snel opstarten aan staat.
-- Teksten in vier talen in `src/Lang.cs`. Elke taal moet evenveel teksten hebben (de tests controleren dat).
+- Teksten in vier talen: pas `build/lang.py` aan en draai het; dat schrijft `src/Lang.cs`.
 - Tests: `tests/Tests.cs`. Zelftest met schermafbeeldingen: `Dusk.exe --zelftest --map <map>`.
 
 ## GitHub

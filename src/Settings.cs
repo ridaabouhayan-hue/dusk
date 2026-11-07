@@ -17,7 +17,10 @@ namespace Dusk
         public string Hotkey = "Win+Shift+Q";
         public int StepMinutes = 15;
         public int WarnMinutes = 1;            // 0 = geen waarschuwing
-        public int UndoSeconds = 5;            // 0 = meteen uitvoeren bij "Nu"
+        public int DelaySeconds = 10;          // aftellen voordat "Nu" echt gebeurt; 0 = meteen
+        public string OpenAt = "smart";        // smart, tray, center, last
+        public int LastX = int.MinValue, LastY = int.MinValue;   // laatste plek (schermpunten)
+        public List<string> Presets = new List<string>(DefaultPresets);
         public bool Forced = false;
         public bool ShowLockLogoff = false;
         public PowerAction DefaultAction = PowerAction.Shutdown;
@@ -25,6 +28,10 @@ namespace Dusk
         public static readonly string[] Languages = { "nl", "en", "es", "fr" };
         public static readonly int[] Steps = { 5, 10, 15, 30 };
         public static readonly int[] WarnChoices = { 0, 1, 2, 5 };
+        public static readonly int[] DelayChoices = { 0, 5, 10, 15, 30 };
+        public static readonly string[] OpenChoices = { "smart", "tray", "center", "last" };
+        public static readonly string[] DefaultPresets = { "15", "30", "60", "120" };
+        public const int MaxPresets = 5;
 
         public static Settings Current = new Settings();
         public static string FilePath = Path.Combine(Log.Dir, "instellingen.txt");
@@ -46,7 +53,10 @@ namespace Dusk
             sb.AppendLine("sneltoets=" + Hotkey);
             sb.AppendLine("stap=" + StepMinutes.ToString(C));
             sb.AppendLine("waarschuwing=" + WarnMinutes.ToString(C));
-            sb.AppendLine("ongedaan=" + UndoSeconds.ToString(C));
+            sb.AppendLine("wachttijd=" + DelaySeconds.ToString(C));
+            sb.AppendLine("openen=" + OpenAt);
+            if (LastX != int.MinValue) sb.AppendLine("plek=" + LastX.ToString(C) + "," + LastY.ToString(C));
+            sb.AppendLine("vaste=" + string.Join(",", Presets.ToArray()));
             sb.AppendLine("geforceerd=" + (Forced ? "1" : "0"));
             sb.AppendLine("vergrendelen=" + (ShowLockLogoff ? "1" : "0"));
             sb.AppendLine("standaard=" + ((int)DefaultAction).ToString(C));
@@ -75,7 +85,27 @@ namespace Dusk
                     case "sneltoets": { int m, vk; if (Hotkeys.Parse(v, out m, out vk)) s.Hotkey = v; break; }
                     case "stap": if (isNum && Array.IndexOf(Steps, n) >= 0) s.StepMinutes = n; break;
                     case "waarschuwing": if (isNum && Array.IndexOf(WarnChoices, n) >= 0) s.WarnMinutes = n; break;
-                    case "ongedaan": if (isNum && (n == 0 || n == 5)) s.UndoSeconds = n; break;
+                    case "wachttijd": if (isNum && Array.IndexOf(DelayChoices, n) >= 0) s.DelaySeconds = n; break;
+                    case "openen": if (Array.IndexOf(OpenChoices, v) >= 0) s.OpenAt = v; break;
+                    case "plek":
+                        {
+                            string[] xy = v.Split(',');
+                            int px, py;
+                            if (xy.Length == 2 && int.TryParse(xy[0], NumberStyles.Integer, C, out px) && int.TryParse(xy[1], NumberStyles.Integer, C, out py)) { s.LastX = px; s.LastY = py; }
+                            break;
+                        }
+                    case "vaste":
+                        {
+                            List<string> l = new List<string>();
+                            foreach (string part in v.Split(','))
+                            {
+                                string pp = part.Trim();
+                                TimeChoice t = TimeInput.Parse(pp);
+                                if (pp.Length > 0 && t.Valid && !t.IsNow && !l.Contains(pp) && l.Count < MaxPresets) l.Add(pp);
+                            }
+                            s.Presets = l;
+                            break;
+                        }
                     case "geforceerd": s.Forced = v == "1"; break;
                     case "vergrendelen": s.ShowLockLogoff = v == "1"; break;
                     case "standaard": if (isNum && n >= 0 && n <= 5) s.DefaultAction = (PowerAction)n; break;

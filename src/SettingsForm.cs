@@ -185,6 +185,11 @@ namespace Dusk
                 app.SettingsChanged();
             });
             y += 70;
+            string[] opens = new string[Settings.OpenChoices.Length];
+            for (int i = 0; i < opens.Length; i++) opens[i] = Lang.T("open." + Settings.OpenChoices[i]);
+            a = Card(g, p, x, y, w, Lang.T("set.open"), st.OpenAt == "smart" ? Lang.T("open.smart.d") : Lang.T("set.open.d"));
+            Choice(g, p, a, Lang.T("open." + st.OpenAt), "open", opens, delegate(int i) { st.OpenAt = Settings.OpenChoices[i]; });
+            y += 70;
             a = Card(g, p, x, y, w, Lang.T("set.forced"), Lang.T("set.forced.d"));
             Toggle(g, p, a, st.Forced, "forced", delegate { st.Forced = !st.Forced; app.SettingsChanged(); });
         }
@@ -304,9 +309,27 @@ namespace Dusk
             a = Card(g, p, x, y, w, Lang.T("set.warn"), Lang.T("set.warn.d"));
             Choice(g, p, a, st.WarnMinutes == 0 ? Lang.T("warn.off") : st.WarnMinutes + " min", "warn", warns, delegate(int i) { st.WarnMinutes = Settings.WarnChoices[i]; });
             y += 70;
-            a = Card(g, p, x, y, w, Lang.T("set.undo"), Lang.T("set.undo.d"));
-            Toggle(g, p, a, st.UndoSeconds > 0, "undo", delegate { st.UndoSeconds = st.UndoSeconds > 0 ? 0 : 5; app.SettingsChanged(); });
+            string[] delays = new string[Settings.DelayChoices.Length];
+            for (int i = 0; i < delays.Length; i++) delays[i] = DelayLabel(Settings.DelayChoices[i]);
+            a = Card(g, p, x, y, w, Lang.T("set.delay"), Lang.T("set.delay.d"));
+            Choice(g, p, a, DelayLabel(st.DelaySeconds), "delay", delays, delegate(int i) { st.DelaySeconds = Settings.DelayChoices[i]; });
+            y += 70;
+            List<string> shown = new List<string>();
+            foreach (string pr in st.Presets) shown.Add(TimeInput.Label(TimeInput.Parse(pr)));
+            a = Card(g, p, x, y, w, Lang.T("set.presets") + ": " + string.Join(", ", shown.ToArray()), Lang.T("set.presets.d"));
+            using (Font f = Ui.F(13, s, false))
+            {
+                string lbl = Lang.T("btn.reset");
+                float bw = Ui.Width(g, lbl, f) + S(28);
+                RectangleF b = new RectangleF(a.Right - bw, a.Y + a.Height / 2 - S(16), bw, S(32));
+                Ui.Fill(g, b, S(6), hover == "presets" ? p.Sel : p.Fill);
+                Ui.Stroke(g, b, S(6), p.Stroke, Math.Max(1f, s));
+                Ui.Text(g, lbl, f, p.T1, b, 0);
+                Add(b, "presets", delegate { st.Presets = new List<string>(Settings.DefaultPresets); app.SettingsChanged(); });
+            }
         }
+
+        static string DelayLabel(int sec) { return sec == 0 ? Lang.T("delay.off") : sec + " " + Lang.T("unit.s"); }
 
         void PageAbout(Graphics g, Palette p, float x, float y, float w)
         {

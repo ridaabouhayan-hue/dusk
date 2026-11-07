@@ -98,6 +98,21 @@ namespace Dusk
             return m.ToString(C) + ":" + s.ToString("00", C);
         }
 
+        // Uit de draaiwieltjes: "over" uren en minuten, of "om" een tijdstip
+        public static TimeChoice FromPicker(bool at, int h, int m)
+        {
+            if (at) return TimeChoice.At(((h % 24) + 24) % 24, ((m % 60) + 60) % 60);
+            int total = Math.Max(0, Math.Min(MaxMinutes, h * 60 + m));
+            return TimeChoice.After(total);
+        }
+
+        // Tekst voor een vaste knop ("15", "120", "23:30")
+        public static string PresetText(TimeChoice t)
+        {
+            if (t.IsClock) return t.Hour.ToString("00", C) + ":" + t.Minute.ToString("00", C);
+            return t.Minutes.ToString(C);
+        }
+
         // Volgende stap met + of − (in stappen van 'step' minuten, nooit onder nu of boven 24 uur)
         public static TimeChoice Step(TimeChoice t, int step, int dir, DateTime now)
         {

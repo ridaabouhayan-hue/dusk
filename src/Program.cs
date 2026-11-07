@@ -75,30 +75,31 @@ namespace Dusk
             Flyout fl = app.Flyout;
             Rectangle at = new Rectangle(1300, 420, 352, 420);
 
-            Shot(dir, "01-kiezen-donker-mica", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
-            Shot(dir, "02-kiezen-licht-mica", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(30), false, null, null, false); return Compose(fl, at); });
-            Shot(dir, "03-kiezen-donker-schemer", true, "dusk", "perzik", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.At(23, 30), false, null, null, false); return Compose(fl, at); });
-            Shot(dir, "04-kiezen-licht-effen", false, "solid", "blauw", delegate { fl.TestSet(Flyout.View.Choose, 2, TimeChoice.After(90), false, null, null, false); return Compose(fl, at); });
-            Shot(dir, "05-typen-in-tijdvak", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, true, "23:3", null, false); return Compose(fl, at); });
-            Shot(dir, "06-foutmelding", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 1, TimeChoice.Now, false, null, Lang.T("err.hibernate"), true); return Compose(fl, at); });
-            Shot(dir, "07-zes-opties", true, "mica", "roze", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 4, TimeChoice.Now, false, null, null, false); Bitmap b = Compose(fl, at); Settings.Current.ShowLockLogoff = false; return b; });
+            Shot(dir, "01-kiezen-donker-mica", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
+            Shot(dir, "02-kiezen-licht-mica", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(30), null, false); return Compose(fl, at); });
+            Shot(dir, "03-kiezen-donker-schemer", true, "dusk", "perzik", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.At(23, 30), null, false); return Compose(fl, at); });
+            Shot(dir, "04-kiezen-licht-effen", false, "solid", "blauw", delegate { fl.TestSet(Flyout.View.Choose, 2, TimeChoice.After(90), null, false); return Compose(fl, at); });
+            Shot(dir, "05-tijd-kiezen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Picker, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
+            Shot(dir, "05b-eigen-vaste-tijd", true, "mica", "lila", delegate { Settings.Current.Presets.Add("23:30"); fl.TestSet(Flyout.View.Choose, 3, TimeChoice.At(23, 30), null, false); Bitmap b = Compose(fl, at); Settings.Current.Presets.Remove("23:30"); return b; });
+            Shot(dir, "06-foutmelding", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 1, TimeChoice.Now, Lang.T("err.hibernate"), true); return Compose(fl, at); });
+            Shot(dir, "07-zes-opties", true, "mica", "roze", delegate { Settings.Current.ShowLockLogoff = true; fl.TestSet(Flyout.View.Choose, 4, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at); Settings.Current.ShowLockLogoff = false; return b; });
 
             app.Scheduler.Start(PowerAction.Shutdown, DateTime.Now.AddMinutes(24).AddSeconds(12));
-            Shot(dir, "08-timer-loopt", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
-            Shot(dir, "09-timer-licht", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "08-timer-loopt", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
+            Shot(dir, "09-timer-licht", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Running, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
             app.Scheduler.Cancel();
             Settings.Current.WarnMinutes = 1;
             app.Scheduler.Start(PowerAction.Sleep, DateTime.Now.AddSeconds(58));
-            Shot(dir, "10-waarschuwing", true, "mica", "lila", delegate { app.Scheduler.OnTick(); fl.TestSet(Flyout.View.Running, 0, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "10-waarschuwing", true, "mica", "lila", delegate { app.Scheduler.OnTick(); fl.TestSet(Flyout.View.Running, 0, TimeChoice.Now, null, false); return Compose(fl, at); });
             app.Scheduler.Cancel();
-            Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
 
             Settings.Current.Language = "en";
-            Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "12-engels", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.After(45), null, false); return Compose(fl, at); });
             Settings.Current.Language = "fr";
-            Shot(dir, "13-frans", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "13-frans", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
             Settings.Current.Language = "es";
-            Shot(dir, "14-spaans", true, "dusk", "lila", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.Now, false, null, null, false); return Compose(fl, at); });
+            Shot(dir, "14-spaans", true, "dusk", "lila", delegate { fl.TestSet(Flyout.View.Choose, 0, TimeChoice.Now, null, false); return Compose(fl, at); });
             Settings.Current.Language = "nl";
 
             for (int page = 0; page < 4; page++)

@@ -20,7 +20,7 @@ namespace Dusk
         public Tray(App app)
         {
             this.app = app;
-            icon.MouseClick += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) app.Toggle(); };
+            icon.MouseClick += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) app.Toggle(Flyout.Origin.Tray); };
             icon.ContextMenuStrip = menu;
             menu.Opening += delegate { BuildMenu(); };
             icon.Visible = true;
@@ -36,7 +36,7 @@ namespace Dusk
             menu.ForeColor = p.T1;
             menu.ShowImageMargin = false;
             try { menu.Font = new Font(Ui.Family, 9.5f); } catch { }
-            menu.Items.Add(Lang.T("tray.open"), null, delegate { app.Flyout.ShowFlyout(true); }).Font = new Font(menu.Font, FontStyle.Bold);
+            menu.Items.Add(Lang.T("tray.open"), null, delegate { app.Flyout.ShowFlyout(true, Flyout.Origin.Tray); }).Font = new Font(menu.Font, FontStyle.Bold);
             if (app.Scheduler.Active)
             {
                 menu.Items.Add(Lang.F("tray.add", Settings.Current.StepMinutes), null, delegate { app.Scheduler.Add(Settings.Current.StepMinutes); });

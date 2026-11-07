@@ -40,11 +40,11 @@ namespace Dusk
 
             Scheduler.Changed += delegate { Tray.Update(); if (Flyout.Visible) { if (!Scheduler.Active && Flyout.Mode == Flyout.View.Running) { Flyout.Mode = Flyout.View.Choose; Flyout.ResetChoice(); } Flyout.Render(); } };
             Scheduler.Tick += delegate { Tray.Tick(); if (Flyout.Visible && Flyout.Mode == Flyout.View.Running) Flyout.Render(); };
-            Scheduler.Warn += delegate { if (!Flyout.Visible) Flyout.ShowFlyout(false); else Flyout.Render(); };
+            Scheduler.Warn += delegate { if (!Flyout.Visible) Flyout.ShowFlyout(false, Flyout.Origin.Passive); else Flyout.Render(); };
             Scheduler.Due += delegate { Execute(Scheduler.Action, false); };
             Scheduler.Resumed += delegate { Tray.Balloon(Lang.T("note.resumed")); };
 
-            if (!startup) Flyout.ShowFlyout(true);
+            if (!startup) Flyout.ShowFlyout(true, Flyout.Origin.Launch);
         }
 
         public void RegisterHotkey(bool tell)
@@ -76,12 +76,12 @@ namespace Dusk
         public void RestoreHotkey() { if (msgWindow != null) RegisterHotkey(false); }
 
         // Sneltoets of klik op het icoon: tonen, of weer verbergen als hij al vooraan staat
-        public void Toggle()
+        public void Toggle(Flyout.Origin origin)
         {
             if (Flyout.Visible && Form.ActiveForm == Flyout) Flyout.HideFlyout();
             // net verborgen omdat je op het icoon klikte: dan niet meteen weer openen
             else if ((DateTime.UtcNow - Flyout.LastAutoHide).TotalMilliseconds < 400) return;
-            else Flyout.ShowFlyout(true);
+            else Flyout.ShowFlyout(true, origin);
         }
 
         public void OpenSettings()
@@ -127,7 +127,7 @@ namespace Dusk
                 {
                     Flyout.Mode = Flyout.View.Choose;
                     Flyout.ResetChoice();
-                    Flyout.ShowFlyout(true);
+                    Flyout.ShowFlyout(true, Flyout.Origin.Launch);
                     Flyout.ShowMessage(Lang.T(err), true);
                 }
             };
@@ -163,8 +163,8 @@ namespace Dusk
 
             protected override void WndProc(ref Message m)
             {
-                if (m.Msg == W.WM_HOTKEY && m.WParam.ToInt32() == Hotkeys.Id) { app.Toggle(); return; }
-                if (m.Msg == ShowMessageId && ShowMessageId != 0) { app.Flyout.ShowFlyout(true); return; }
+                if (m.Msg == W.WM_HOTKEY && m.WParam.ToInt32() == Hotkeys.Id) { app.Toggle(Flyout.Origin.Hotkey); return; }
+                if (m.Msg == ShowMessageId && ShowMessageId != 0) { app.Flyout.ShowFlyout(true, Flyout.Origin.Launch); return; }
                 if (m.Msg == W.WM_SETTINGCHANGE)
                 {
                     string area = m.LParam != IntPtr.Zero ? System.Runtime.InteropServices.Marshal.PtrToStringUni(m.LParam) : null;

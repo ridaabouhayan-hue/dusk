@@ -5,8 +5,9 @@ Eerste versie van Dusk.
 **Openen:** `Win + Shift + Q` of klik op het icoon bij de klok.
 
 - Slaapstand, sluimerstand, opnieuw opstarten en afsluiten, met pijltjes of de cijfers 1 tot 4
-- Timer: Nu, met + en − of zelf typen (30, 1,5u, 23:30), met een melding een minuut van tevoren
-- 5 seconden om te annuleren bij Nu
+- Timer: Nu, met + en −, vaste tijden (en je eigen), of met draaiwieltjes een tijd kiezen; een melding een minuut van tevoren
+- Aftellen bij Nu, zodat je op het laatste moment nog kunt stoppen
+- Opent bij de taakbalk of in het midden, of waar je hem neerzet
 - Licht en donker volgen Windows; achtergrond Mica, effen of schemer; vijf accentkleuren
 - Nederlands, English, Español en Français
 - Helemaal offline

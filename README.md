@@ -10,10 +10,11 @@ Kijk bij **Releases** en kies `Dusk-Setup.exe`. De installer heeft geen beheerde
 
 ## Gebruik
 
-- **Openen:** `Win + Shift + Q`, of klik op het icoon rechtsonder bij de klok.
+- **Openen:** klik op het icoon bij de klok (venster rechtsonder), of `Win + Shift + Q` en het startmenu (venster in het midden). Waar hij opent kies je in Instellingen, ook "waar ik hem neerzet": versleep het venster aan de bovenkant.
 - **Kiezen:** pijltjes omhoog en omlaag, of de cijfers 1 tot 4.
-- **Wanneer:** standaard *Nu*. Met `+` en `−` gaat er 15 minuten bij of af, met links en rechts kies je een vaste tijd, en met `Tab` typ je zelf iets: `30`, `1,5u` of een tijdstip als `23:30`.
-- **Uitvoeren:** `Enter` of de knop onderaan. Bij *Nu* heb je nog 5 seconden om met `Esc` te stoppen.
+- **Wanneer:** standaard *Nu*. Met `+` en `−` gaat er 15 minuten bij of af, met links en rechts kies je een vaste tijd (15 min, 30 min, 1 uur, 2 uur). Met de `+`-knop in die rij maak je je eigen vaste tijd; rechtsklik om er een weg te halen.
+- **Zelf een tijd kiezen:** klik op het tijdvak, of druk `Tab`. Kies *Over* (bijvoorbeeld over 1 uur 30) of *Om* (bijvoorbeeld om 23:30) met twee wieltjes: scrollen, pijltjes, of gewoon de cijfers typen.
+- **Uitvoeren:** `Enter` of de knop onderaan. Boven de knop staat precies wat er gaat gebeuren. Bij *Nu* telt Dusk eerst af (standaard 10 seconden, in te stellen), zodat je op het laatste moment nog met `Esc` kunt stoppen.
 - **Timer loopt:** het icoon in de taakbalk dooft langzaam uit. Een minuut van tevoren krijg je een melding met *+15 min* en *Annuleren*.
 - **Instellingen:** het tandwiel, `Ctrl + ,` of rechtsklik op het icoon. Taal (Nederlands, English, Español, Français), licht of donker, achtergrond (Mica, effen, schemer), accentkleur, sneltoets en meer.
 

@@ -123,7 +123,10 @@ namespace Dusk
             { "shutdown", "M12 3v8 M6.3 6.8a8 8 0 1 0 11.4 0" },
             { "lock", "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z M7 11V7a5 5 0 0 1 10 0v4" },
             { "logoff", "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" },
-            { "gear", "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z M12 2.5v2.2 M12 19.3v2.2 M4.6 4.6l1.6 1.6 M17.8 17.8l1.6 1.6 M2.5 12h2.2 M19.3 12h2.2 M4.6 19.4l1.6-1.6 M17.8 6.2l1.6-1.6" },
+            // tandwiel (Lucide "settings", ISC-licentie)
+            { "gear", "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z" },
+            // sluimerstand: een sneeuwvlok (winterslaap: alles bewaard, helemaal geen stroom)
+            { "snow", "M12 2v20 M3.3 7l17.4 10 M3.3 17L20.7 7 M9 3.5l3 2.5 3-2.5 M9 20.5l3-2.5 3 2.5 M3.6 10.4l3.6-1.4-.6-3.8 M20.4 13.6l-3.6 1.4.6 3.8 M3.6 13.6l3.6 1.4-.6 3.8 M20.4 10.4l-3.6-1.4.6-3.8" },
             { "minus", "M5 12h14" },
             { "plus", "M5 12h14 M12 5v14" },
             { "close", "M6 6l12 12 M18 6L6 18" },
@@ -133,7 +136,42 @@ namespace Dusk
 
         static readonly Dictionary<string, GraphicsPath> Cache = new Dictionary<string, GraphicsPath>();
 
-        public static string IconFor(PowerAction a) { return Lang.Key(a); }
+        // Slaapstand: een volle maan(sikkel) met zzz. Sluimerstand: sneeuwvlok. Duidelijk verschillend van elkaar.
+        public static void ActionIcon(Graphics g, PowerAction a, RectangleF box, Color c)
+        {
+            switch (a)
+            {
+                case PowerAction.Sleep:
+                    {
+                        GraphicsState st = g.Save();
+                        float k = Math.Min(box.Width, box.Height) / 24f;
+                        g.TranslateTransform(box.X + (box.Width - 24 * k) / 2, box.Y + (box.Height - 24 * k) / 2);
+                        g.ScaleTransform(k, k);
+                        // volle maansikkel: een cirkel waar een tweede cirkel rechtsboven uit is gehaald
+                        using (GraphicsPath outer = new GraphicsPath())
+                        using (GraphicsPath inner = new GraphicsPath())
+                        {
+                            outer.AddEllipse(2.5f, 5f, 16.5f, 16.5f);
+                            inner.AddEllipse(9.2f, 1.6f, 13f, 13f);
+                            using (Region r = new Region(outer))
+                            using (SolidBrush b = new SolidBrush(c))
+                            {
+                                r.Exclude(inner);
+                                g.FillRegion(b, r);
+                            }
+                        }
+                        using (Pen p = new Pen(c, 1.7f))
+                        {
+                            p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
+                            g.DrawLines(p, new[] { new PointF(16.5f, 2.2f), new PointF(21f, 2.2f), new PointF(16.5f, 6.8f), new PointF(21f, 6.8f) });
+                        }
+                        g.Restore(st);
+                        return;
+                    }
+                case PowerAction.Hibernate: Icon(g, "snow", box, c, 1.8f); return;
+                default: Icon(g, Lang.Key(a), box, c, 1.9f); return;
+            }
+        }
 
         public static void Icon(Graphics g, string name, RectangleF box, Color c, float strokeAt24)
         {
