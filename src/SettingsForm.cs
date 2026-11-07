@@ -337,7 +337,7 @@ namespace Dusk
         {
             Updates.Info pu = app.PendingUpdate;
             string title, sub, icon; Color dot;
-            if (pu != null) { title = Lang.F("upd.ready", pu.Version); sub = Lang.T("upd.ready.d"); icon = "download"; dot = p.Accent; }
+            if (pu != null) { title = Lang.F("upd.ready", pu.Version); sub = Lang.T("upd.ready.d") + (app.Scheduler.Active ? " " + Lang.T("upd.confirm.timer") : ""); icon = "download"; dot = p.Accent; }
             else if (updState == 1) { title = Lang.T("upd.checking"); sub = Lang.T("upd.checking.d"); icon = "restart"; dot = p.Sel; }
             else if (updState == 2) { title = Lang.T("upd.latest"); sub = Lang.F("upd.latest.d", Program.Version, updCheckedAt.ToString("HH:mm")); icon = "check"; dot = Color.FromArgb(22, 163, 74); }
             else if (updState == 3) { title = Lang.T("upd.failed"); sub = Lang.T("upd.failed.d"); icon = "close"; dot = p.Danger; }

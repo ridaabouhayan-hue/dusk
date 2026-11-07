@@ -12,6 +12,9 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.2.2", "8 november 2026",
+                L("Bijwerken kan niet meer vastlopen: geen los vraagvenster meer dat achter Dusk verdwijnt", "Updating can no longer get stuck: no separate question window hiding behind Dusk"),
+                L("Staat Instellingen open, dan staat het venster niet meer altijd bovenop en gaat het mee weg met Instellingen", "While Settings is open, the window is no longer always on top and goes away with Settings")),
             V("1.2.1", "8 november 2026",
                 L("Tekst wordt nu door Windows zelf gezet: even scherp als in Verkenner, ook in Instellingen", "Text is now drawn by Windows itself: as sharp as in File Explorer, also in Settings"),
                 L("Mica toont alleen nog de kleur van je bureaublad, geen vreemde vormen meer", "Mica now only shows the colour of your desktop, no more odd shapes"),

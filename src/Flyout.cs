@@ -102,8 +102,32 @@ namespace Dusk
             if (!Visible) Place(origin);
             Render();
             if (!Visible) Show();
-            W.SetWindowPos(Handle, W.HWND_TOPMOST, 0, 0, 0, 0, W.SWP_NOMOVE | W.SWP_NOSIZE | (activate ? 0 : W.SWP_NOACTIVATE));
+            W.SetWindowPos(Handle, companionOf != IntPtr.Zero ? W.HWND_TOP : W.HWND_TOPMOST, 0, 0, 0, 0, W.SWP_NOMOVE | W.SWP_NOSIZE | (activate ? 0 : W.SWP_NOACTIVATE));
             if (activate) { Activate(); W.ForceForeground(Handle); }
+        }
+
+        // Terwijl Instellingen open staat hoort het venster bij Instellingen en staat het niet altijd bovenop.
+        // Zo komen vragen van Dusk en andere programma's er gewoon overheen, en gaat het mee weg als je
+        // Instellingen minimaliseert of een ander programma kiest.
+        IntPtr companionOf = IntPtr.Zero;
+
+        public void Companion(IntPtr owner)
+        {
+            companionOf = owner;
+            if (!IsHandleCreated) return;
+            TopMost = false;
+            W.SetOwner(Handle, owner);
+            W.SetWindowPos(Handle, W.HWND_NOTOPMOST, 0, 0, 0, 0, W.SWP_NOMOVE | W.SWP_NOSIZE | W.SWP_NOACTIVATE);
+        }
+
+        // Weer los en altijd bovenop (moet gebeuren voordat Instellingen dichtgaat, anders gaat dit venster mee)
+        public void Standalone()
+        {
+            if (companionOf == IntPtr.Zero) return;
+            companionOf = IntPtr.Zero;
+            if (!IsHandleCreated) return;
+            W.SetOwner(Handle, IntPtr.Zero);
+            TopMost = true;
         }
 
         public void ShowMessage(string text, bool error)

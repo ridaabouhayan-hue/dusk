@@ -103,9 +103,9 @@ namespace Dusk
                 try { if (info.PageUrl.StartsWith("https://github.com/")) System.Diagnostics.Process.Start(info.PageUrl); } catch { }
                 return;
             }
+            // Geen extra vraag: de knop "Nu bijwerken" is de keuze, en de kaart zegt al wat er gebeurt.
+            // (Een los vraagvenster kon achter het hoofdvenster belanden en dan zat alles vast.)
             Updating = true;
-            string q = Lang.F("upd.confirm", info.Version) + (Scheduler.Active ? " " + Lang.T("upd.confirm.timer") : "");
-            if (MessageBox.Show(owner, q, "Dusk", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) { Updating = false; return; }
             Tray.Balloon(Lang.T("upd.downloading"));
             Updates.Download(info, delegate(string file)
             {
@@ -179,6 +179,7 @@ namespace Dusk
             if (fresh)
             {
                 settings = new SettingsForm(this);
+                settings.FormClosing += delegate { Flyout.Standalone(); };
                 settings.FormClosed += delegate
                 {
                     settings = null;
@@ -190,6 +191,7 @@ namespace Dusk
             settings.Show();
             // Het venster blijft (of komt) in beeld, zodat je meteen ziet wat een instelling doet
             if (!Flyout.Visible) { Flyout.ShowFlyout(false, Flyout.Origin.Passive); previewShown = true; }
+            Flyout.Companion(settings.Handle);
             if (fresh) KeepApart();
             settings.Activate();
             W.ForceForeground(settings.Handle);

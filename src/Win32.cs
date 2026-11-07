@@ -13,7 +13,18 @@ namespace Dusk
         public const int WM_SETTINGCHANGE = 0x001A, WM_ACTIVATE = 0x0006, WM_MOUSEACTIVATE = 0x0021, MA_NOACTIVATE = 3;
         public const int MOD_ALT = 1, MOD_CONTROL = 2, MOD_SHIFT = 4, MOD_WIN = 8, MOD_NOREPEAT = 0x4000;
         public const int ULW_ALPHA = 2, SW_SHOWNOACTIVATE = 4;
-        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1), HWND_BROADCAST = new IntPtr(0xFFFF);
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1), HWND_NOTOPMOST = new IntPtr(-2), HWND_TOP = IntPtr.Zero, HWND_BROADCAST = new IntPtr(0xFFFF);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int index, IntPtr value);
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] static extern int SetWindowLong32(IntPtr hWnd, int index, int value);
+
+        // Maakt een venster 'eigendom' van een ander venster (of los, met IntPtr.Zero)
+        public static void SetOwner(IntPtr hWnd, IntPtr owner)
+        {
+            const int GWLP_HWNDPARENT = -8;
+            if (IntPtr.Size == 8) SetWindowLongPtr64(hWnd, GWLP_HWNDPARENT, owner);
+            else SetWindowLong32(hWnd, GWLP_HWNDPARENT, owner.ToInt32());
+        }
         public const int SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
 
         [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }

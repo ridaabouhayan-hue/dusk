@@ -127,7 +127,6 @@ T = [
 ("upd.notify.d","Alleen een vraag aan GitHub, er gaat niets van jou mee","Only a question to GitHub, nothing of yours is sent","Solo una consulta a GitHub, no se envía nada tuyo","Juste une question à GitHub, rien de vous n'est envoyé"),
 ("upd.news","Wat is er nieuw","What is new","Novedades","Nouveautés"),
 ("upd.yours","jouw versie","your version","tu versión","votre version"),
-("upd.confirm","Dusk bijwerken naar {0}? Dusk sluit even en start daarna vanzelf weer.","Update Dusk to {0}? Dusk closes briefly and then starts again.","¿Actualizar Dusk a {0}? Dusk se cierra un momento y vuelve a abrirse.","Mettre à jour Dusk vers {0} ? Dusk se ferme un instant puis redémarre."),
 ("upd.confirm.timer","Je timer stopt dan.","Your timer will stop.","Tu temporizador se detendrá.","Votre minuterie s'arrêtera."),
 ("upd.found","Er is een nieuwe versie: {0}. Klik hier om bij te werken.","There is a new version: {0}. Click here to update.","Hay una versión nueva: {0}. Haz clic para actualizar.","Une nouvelle version est disponible : {0}. Cliquez pour mettre à jour."),
 ("upd.done","Dusk is bijgewerkt naar {0}.","Dusk was updated to {0}.","Dusk se ha actualizado a {0}.","Dusk a été mis à jour vers {0}."),
