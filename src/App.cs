@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -170,21 +171,53 @@ namespace Dusk
 
         public void OpenSettings() { OpenSettings(-1); }
 
+        bool previewShown;   // venster alleen getoond om mee te kijken terwijl Instellingen open staat
+
         public void OpenSettings(int page)
         {
-            Flyout.HideFlyout();
-            if (settings == null || settings.IsDisposed)
+            bool fresh = settings == null || settings.IsDisposed;
+            if (fresh)
             {
                 settings = new SettingsForm(this);
-                settings.FormClosed += delegate { settings = null; };
+                settings.FormClosed += delegate
+                {
+                    settings = null;
+                    if (previewShown && Flyout.Visible && Form.ActiveForm != Flyout) Flyout.HideFlyout();
+                    previewShown = false;
+                };
             }
             if (page >= 0) { settings.Page = page; settings.Invalidate(); }
             settings.Show();
+            // Het venster blijft (of komt) in beeld, zodat je meteen ziet wat een instelling doet
+            if (!Flyout.Visible) { Flyout.ShowFlyout(false, Flyout.Origin.Passive); previewShown = true; }
+            if (fresh) KeepApart();
             settings.Activate();
             W.ForceForeground(settings.Handle);
         }
 
         // Instellingen veranderd: alles opnieuw tekenen in de nieuwe taal, kleur of met de nieuwe sneltoets
+        // Instellingen en het venster niet over elkaar heen: Instellingen schuift dan naar links
+        void KeepApart()
+        {
+            try
+            {
+                Rectangle f = Flyout.Bounds, sb = settings.Bounds;
+                if (!f.IntersectsWith(sb)) return;
+                Rectangle wa = Screen.FromRectangle(f).WorkingArea;
+                int x = Math.Max(wa.Left + 8, f.Left - 16 - sb.Width);
+                int y = Math.Max(wa.Top + 8, Math.Min(wa.Bottom - sb.Height - 8, sb.Top));
+                settings.Location = new Point(x, y);
+            }
+            catch { }
+        }
+
+        // Het kruisje in het venster: Dusk helemaal stoppen (bij een lopende timer eerst vragen)
+        public void QuitAsk(IWin32Window owner)
+        {
+            if (Scheduler.Active && MessageBox.Show(owner, Lang.T("quit.timer"), "Dusk", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            Quit();
+        }
+
         public void SettingsChanged()
         {
             Settings.Current.Save();

@@ -1,10 +1,9 @@
-Dusk 1.1.0
+Dusk 1.2.0
 
-**Nieuw**
-- Bijwerken met een klik: Instellingen > Bijwerken. Dusk haalt de nieuwe versie van GitHub, controleert het bestand met zijn controlecode, installeert stil en start daarna vanzelf weer.
-- Een melding als er een nieuwe versie is (uit te zetten). Er gaat niets van jou mee, het is alleen een vraag aan GitHub.
-- Wat is er nieuw: per versie te lezen in Instellingen.
+**Verbeterd**
+- Scherpere en iets grotere tekst, net als in Windows zelf (ook in Instellingen)
+- Gladde maan bij Slaapstand
+- Rechtsboven in het venster: naar de taakbalk (streepje) en Dusk helemaal stoppen (kruisje)
+- Dusk blijft in beeld als Instellingen open staat, zo zie je meteen wat een thema, kleur of taal doet
 
-**Installeren:** download `Dusk-Setup.exe` hieronder en open het. Heb je Dusk al, dan kan het voortaan vanuit Dusk zelf.
-
-Let op: Windows SmartScreen kan bij de eerste keer waarschuwen omdat de app nieuw en niet ondertekend is. Kies dan "Meer informatie" en "Toch uitvoeren".
+**Bijwerken:** heb je Dusk 1.1.0 of nieuwer, ga dan naar Instellingen > Bijwerken en klik op Nu bijwerken. Anders: download `Dusk-Setup.exe` hieronder.

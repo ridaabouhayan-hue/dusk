@@ -133,6 +133,7 @@ T = [
 ("upd.done","Dusk is bijgewerkt naar {0}.","Dusk was updated to {0}.","Dusk se ha actualizado a {0}.","Dusk a été mis à jour vers {0}."),
 ("upd.fail","Bijwerken lukte niet. Probeer het later nog eens.","Updating did not work. Please try again later.","No se pudo actualizar. Inténtalo más tarde.","La mise à jour a échoué. Réessayez plus tard."),
 ("upd.downloading","De nieuwe versie wordt opgehaald...","Downloading the new version...","Descargando la versión nueva...","Téléchargement de la nouvelle version..."),
+("quit.timer","Dusk stoppen? Je timer stopt dan.","Quit Dusk? Your timer will stop.","¿Salir de Dusk? Tu temporizador se detendrá.","Quitter Dusk ? Votre minuterie s'arrêtera."),
 ("tray.update","Bijwerken naar {0}","Update to {0}","Actualizar a {0}","Mettre à jour vers {0}"),
 ]
 def q(s): return '"' + s.replace('\\','\\\\').replace('"','\\"') + '"'

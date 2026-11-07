@@ -230,13 +230,25 @@ namespace Dusk
 
         void DrawHeader(Graphics g, Palette p)
         {
-            Zone(R(0, 0, PanelW - Pad - 44, Pad + 40), "drag");   // aan de bovenkant kun je het venster verslepen
+            Zone(R(0, 0, PanelW - Pad - 3 * 34 - 4, Pad + 40), "drag");   // aan de bovenkant kun je het venster verslepen
             Ui.Logo(g, R(Pad + 8, Pad + 8, 20, 20), p.Dark ? Color.FromArgb(224, 231, 255) : Color.FromArgb(55, 48, 163), 4.5f, 1f, Color.Empty);
-            using (Font f = Ui.F(14, s, true)) Ui.Text(g, "Dusk", f, p.T1, R(Pad + 38, Pad + 2, 160, 32), -1);
-            RectangleF gear = R(PanelW - Pad - 4 - 36, Pad + 2, 36, 36);
-            Ui.Fill(g, gear, S(8), Hot("gear", p.Fill, p.Sel));
-            Ui.Icon(g, "gear", new RectangleF(gear.X + S(8), gear.Y + S(8), S(20), S(20)), p.T2, 1.6f);
-            Zone(gear, "gear");
+            using (Font f = Ui.F(14, s, true)) Ui.Text(g, "Dusk", f, p.T1, R(Pad + 38, Pad + 2, 140, 32), -1);
+            // rechts: instellingen, naar de taakbalk, helemaal stoppen
+            float bx = PanelW - Pad - 2;
+            string[] ids = { "quit", "min", "gear" };
+            string[] icons = { "close", "minus", "gear" };
+            for (int i = 0; i < 3; i++)
+            {
+                bx -= 32;
+                RectangleF b = R(bx, Pad + 4, 32, 32);
+                Color bg = hover == ids[i] ? (ids[i] == "quit" ? Color.FromArgb(196, 43, 28) : p.Sel) : (ids[i] == "gear" ? p.Fill : Color.Transparent);
+                Ui.Fill(g, b, S(8), bg);
+                Color ic = hover == "quit" && ids[i] == "quit" ? Color.White : p.T2;
+                float isz = ids[i] == "gear" ? 18 : 14;
+                Ui.Icon(g, icons[i], new RectangleF(b.X + (b.Width - S(isz)) / 2, b.Y + (b.Height - S(isz)) / 2, S(isz), S(isz)), ic, ids[i] == "gear" ? 1.6f : 1.8f);
+                Zone(b, ids[i]);
+                bx -= 2;
+            }
         }
 
         // De regel boven de knop: wat er gebeurt als je op Enter drukt (of een foutmelding)
@@ -712,6 +724,8 @@ namespace Dusk
         {
             message = null;
             if (id == "gear") { app.OpenSettings(); return; }
+            if (id == "min") { HideFlyout(); return; }          // naar de taakbalk, Dusk blijft klaarstaan
+            if (id == "quit") { app.QuitAsk(this); return; }    // Dusk helemaal stoppen
             switch (Mode)
             {
                 case View.Choose:

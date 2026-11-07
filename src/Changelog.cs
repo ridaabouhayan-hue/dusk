@@ -12,6 +12,11 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.2.0", "7 november 2026",
+                L("Scherpere en iets grotere tekst, net als in Windows zelf", "Sharper, slightly larger text, like Windows itself"),
+                L("Gladde maan bij Slaapstand", "Smooth moon icon for Sleep"),
+                L("Knoppen om naar de taakbalk te gaan en om Dusk te stoppen", "Buttons to minimise to the taskbar and to quit Dusk"),
+                L("Dusk blijft in beeld als Instellingen open staat, zo zie je meteen wat er verandert", "Dusk stays visible while Settings is open, so you see changes right away")),
             V("1.1.0", "7 november 2026",
                 L("Bijwerken met een klik, bij Instellingen > Bijwerken", "Update with one click, in Settings > Update"),
                 L("Melding als er een nieuwe versie is", "A notice when there is a new version"),

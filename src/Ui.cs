@@ -32,8 +32,11 @@ namespace Dusk
 
         public static Font F(float px, float s, bool bold)
         {
-            return new Font(Family, px * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+            return new Font(Family, (px + Bump(px)) * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
         }
+
+        // Kleine tekst een tikje groter, zodat alles goed leesbaar is (12 wordt 13, 14 wordt 15)
+        static float Bump(float px) { return px <= 16 ? 1f : 0f; }
 
         public static Font Big(float px, float s)
         {
@@ -44,7 +47,9 @@ namespace Dusk
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            // ClearType: zo scherp als de tekst van Windows zelf. Kan alleen op een dichte achtergrond,
+            // en dat is overal waar we tekst zetten (het vlak van het venster is altijd dicht).
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         }
 
@@ -166,23 +171,13 @@ namespace Dusk
                         float k = Math.Min(box.Width, box.Height) / 24f;
                         g.TranslateTransform(box.X + (box.Width - 24 * k) / 2, box.Y + (box.Height - 24 * k) / 2);
                         g.ScaleTransform(k, k);
-                        // volle maansikkel: een cirkel waar een tweede cirkel rechtsboven uit is gehaald
-                        using (GraphicsPath outer = new GraphicsPath())
-                        using (GraphicsPath inner = new GraphicsPath())
-                        {
-                            outer.AddEllipse(2.5f, 5f, 16.5f, 16.5f);
-                            inner.AddEllipse(9.2f, 1.6f, 13f, 13f);
-                            using (Region r = new Region(outer))
-                            using (SolidBrush b = new SolidBrush(c))
-                            {
-                                r.Exclude(inner);
-                                g.FillRegion(b, r);
-                            }
-                        }
+                        // volle maansikkel als pad (gladde randen; een Region zou kartelig worden)
+                        using (GraphicsPath moon = Svg.Path("M9.9 5.04A8.25 8.25 0 1 0 18.98 13.81A6.8 6.8 0 0 1 9.9 5.04z"))
+                        using (SolidBrush b = new SolidBrush(c)) g.FillPath(b, moon);
                         using (Pen p = new Pen(c, 1.7f))
                         {
                             p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
-                            g.DrawLines(p, new[] { new PointF(16.5f, 2.2f), new PointF(21f, 2.2f), new PointF(16.5f, 6.8f), new PointF(21f, 6.8f) });
+                            g.DrawLines(p, new[] { new PointF(16.8f, 1.6f), new PointF(21.2f, 1.6f), new PointF(16.8f, 5.8f), new PointF(21.2f, 5.8f) });
                         }
                         g.Restore(st);
                         return;

@@ -162,6 +162,7 @@ namespace Dusk
             "upd.done",
             "upd.fail",
             "upd.downloading",
+            "quit.timer",
             "tray.update"
         };
 
@@ -310,6 +311,7 @@ namespace Dusk
                 "Dusk is bijgewerkt naar {0}.",
                 "Bijwerken lukte niet. Probeer het later nog eens.",
                 "De nieuwe versie wordt opgehaald...",
+                "Dusk stoppen? Je timer stopt dan.",
                 "Bijwerken naar {0}");
             Add("en",
                 "Sleep",
@@ -443,6 +445,7 @@ namespace Dusk
                 "Dusk was updated to {0}.",
                 "Updating did not work. Please try again later.",
                 "Downloading the new version...",
+                "Quit Dusk? Your timer will stop.",
                 "Update to {0}");
             Add("es",
                 "Suspender",
@@ -576,6 +579,7 @@ namespace Dusk
                 "Dusk se ha actualizado a {0}.",
                 "No se pudo actualizar. Inténtalo más tarde.",
                 "Descargando la versión nueva...",
+                "¿Salir de Dusk? Tu temporizador se detendrá.",
                 "Actualizar a {0}");
             Add("fr",
                 "Veille",
@@ -709,6 +713,7 @@ namespace Dusk
                 "Dusk a été mis à jour vers {0}.",
                 "La mise à jour a échoué. Réessayez plus tard.",
                 "Téléchargement de la nouvelle version...",
+                "Quitter Dusk ? Votre minuterie s'arrêtera.",
                 "Mettre à jour vers {0}");
         }
 
