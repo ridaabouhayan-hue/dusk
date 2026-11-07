@@ -74,24 +74,8 @@ namespace Dusk
         // 1. Windows zet de letters wit op zwart in een apart plaatje (dat doet GDI altijd goed en scherp).
         // 2. Daaruit halen we per pixel hoeveel "letter" erin zit, zonder de gekleurde randjes van ClearType
         //    (grijs gladmaken, zoals de apps van Windows 11 zelf doen).
-        // 3. Dat plaatje kleuren we in de tekstkleur en leggen we op het venster. Voor donkere tekst op een
-        //    lichte achtergrond corrigeren we de dikte, zodat die er net zo uitziet als lichte tekst op donker.
+        // 3. Dat plaatje kleuren we in de tekstkleur en leggen we op het venster.
         public static Color Back = Color.FromArgb(32, 32, 34);   // ongeveer de kleur onder de tekst
-
-        static readonly byte[] DarkOnLight = MakeDarkTable();
-
-        static byte[] MakeDarkTable()
-        {
-            byte[] t = new byte[256];
-            const double gamma = 1.9;
-            for (int v = 0; v < 256; v++)
-            {
-                double k = Math.Pow(v / 255.0, gamma);                  // hoeveel van de pixel bedekt is
-                double a = 1 - Math.Pow(1 - k, 1 / gamma);              // dezelfde bedekking voor donker op licht
-                t[v] = (byte)Math.Max(0, Math.Min(255, Math.Round(a * 255)));
-            }
-            return t;
-        }
 
         public static double Luma(Color c) { return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0; }
 
@@ -208,7 +192,6 @@ namespace Dusk
                     }
                     else TextRenderer.DrawText(gm, s, f, new Rectangle(0, 0, w, h), Color.White, Color.Black, fl);
                 }
-                bool darkText = Luma(c) < Luma(Back);
                 int rgb = (c.R << 16) | (c.G << 8) | c.B;
                 Rectangle all = new Rectangle(0, 0, w, h);
                 System.Drawing.Imaging.BitmapData md = mask.LockBits(all, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
@@ -223,7 +206,6 @@ namespace Dusk
                         {
                             int px = row[x];
                             int v = (((px >> 16) & 255) + ((px >> 8) & 255) + (px & 255)) / 3;   // grijs, geen kleurrandjes
-                            if (darkText) v = DarkOnLight[v];
                             int a = v * c.A / 255;
                             row[x] = (a << 24) | rgb;
                         }

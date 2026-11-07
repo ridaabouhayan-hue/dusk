@@ -12,8 +12,9 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
-            V("1.3.1", "8 november 2026",
-                L("Vette woorden weer halfvet, zoals in Windows 11", "Bold words are semibold again, like Windows 11")),
+            V("1.3.2", "8 november 2026",
+                L("Vette woorden weer halfvet, zoals in Windows 11", "Bold words are semibold again, like Windows 11"),
+                L("Tekst in het lichte thema even krachtig als in het donkere", "Text in the light theme as strong as in the dark theme")),
             V("1.3.0", "8 november 2026",
                 L("Nieuwe manier van tekst zetten: even scherp in licht, donker en elke kleur, zonder gekleurde randjes", "New text rendering: equally sharp in light, dark and every colour, without coloured fringes"),
                 L("Grootte kiezen: klein, normaal, groot of extra groot (Uiterlijk)", "Choose a size: small, normal, large or extra large (Appearance)"),

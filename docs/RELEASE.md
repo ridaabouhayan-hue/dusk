@@ -1,7 +1,8 @@
-Dusk 1.3.1
+Dusk 1.3.2
 
-**Opgelost in 1.3.1**
+**Opgelost in 1.3.2**
 - Vette woorden (zoals de knop en de gekozen regel) zijn weer halfvet, zoals in Windows 11.
+- Tekst in het lichte thema is even krachtig als in het donkere.
 
 **Uit 1.3.0**
 
