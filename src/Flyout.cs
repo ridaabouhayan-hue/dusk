@@ -244,6 +244,7 @@ namespace Dusk
                     using (Graphics gi = Graphics.FromImage(inner))
                     {
                         Ui.Setup(gi);
+                        Ui.SetScale(s);
                         string mode = Settings.Current.Backdrop;
                         p.PaintBackdrop(gi, new Rectangle(0, 0, pw, ph), onScreen, mode);
                         Ui.Back = p.TextBack(mode);
@@ -473,12 +474,18 @@ namespace Dusk
             DrawHeader(g, p);
             double left = Math.Max(0, (undoEnd - DateTime.Now).TotalSeconds);
             float frac = (float)(left / Math.Max(1, Settings.Current.DelaySeconds));
-            float r;
-            PointF c = Center(out r);
-            Ring(g, p, c, S(r), S(6), frac);
-            Ui.ActionIcon(g, undoAction, new RectangleF(c.X - S(11), c.Y - S(58), S(22), S(22)), p.Accent);
-            using (Font f = Ui.F(12, s, false)) Ui.Text(g, Lang.ActionName(undoAction), f, p.T2, new RectangleF(c.X - S(80), c.Y - S(34), S(160), S(18)), 0);
-            using (Font f = Ui.Big(48, s)) Ui.Text(g, Math.Ceiling(left).ToString("0"), f, p.T1, new RectangleF(c.X - S(80), c.Y - S(20), S(160), S(56)), 0);
+            // Groot en duidelijk wat er gaat gebeuren: icoon en naam bovenaan, daaronder de tellende ring
+            float top = Pad + 52, bottom = InfoY - 8;
+            float cx = PanelW / 2f;
+            RectangleF tile = R(cx - 32, top + 4, 64, 64);
+            Ui.Fill(g, tile, S(18), Color.FromArgb(p.Dark ? 40 : 34, p.Accent));
+            Ui.ActionIcon(g, undoAction, new RectangleF(tile.X + S(14), tile.Y + S(14), S(36), S(36)), p.Accent);
+            using (Font f = Ui.Big(26, s)) Ui.Text(g, Lang.ActionName(undoAction), f, p.T1, R(Pad, top + 76, PanelW - 2 * Pad, 36), 0);
+            float ringTop = top + 122;
+            float r = Math.Max(34, Math.Min(64, (bottom - ringTop) / 2 - 4));
+            PointF c = new PointF(S(cx), S(ringTop + (bottom - ringTop) / 2));
+            Ring(g, p, c, S(r), S(5), frac);
+            using (Font f = Ui.Big(Math.Min(44, r * 0.8f), s)) Ui.Text(g, Math.Ceiling(left).ToString("0"), f, p.T1, new RectangleF(c.X - S(r), c.Y - S(r), S(2 * r), S(2 * r)), 0);
             DrawInfo(g, p, Lang.T("undo.hint"), false);
             float bw = (PanelW - 2 * Pad - 8) / 2f;
             DrawOutlineButton(g, p, R(Pad, BtnY, bw, 40), Lang.T("btn.cancel"), "undo.cancel");
@@ -777,7 +784,11 @@ namespace Dusk
                     if (id.StartsWith("row"))
                     {
                         int i = int.Parse(id.Substring(3));
-                        if (Power.Available(Actions()[i])) selected = i;
+                        if (Power.Available(Actions()[i]))
+                        {
+                            selected = i;
+                            if (Settings.Current.DirectRun) { Usage.Count("direct.klik"); Go(); return; }
+                        }
                     }
                     else if (id.StartsWith("chip"))
                     {
@@ -856,7 +867,12 @@ namespace Dusk
             if (digit >= 0)
             {
                 List<PowerAction> l = Actions();
-                if (digit < l.Count && Power.Available(l[digit])) { selected = digit; Render(); }
+                if (digit < l.Count && Power.Available(l[digit]))
+                {
+                    selected = digit;
+                    if (Settings.Current.DirectRun) { Usage.Count("direct.toets"); Go(); return true; }
+                    Render();
+                }
                 return true;
             }
             return false;
@@ -969,7 +985,7 @@ namespace Dusk
         {
             Mode = v; selected = sel; choice = t;
             message = msg; messageIsError = err; hover = null;
-            undoAction = PowerAction.Shutdown; undoEnd = DateTime.Now.AddSeconds(7.4);
+            undoAction = v == View.Undo ? SelectedAction : PowerAction.Shutdown; undoEnd = DateTime.Now.AddSeconds(7.4);
             if (v == View.Picker) { OpenPicker(false); pickAt = true; pickH = 23; pickM = 30; pickCol = 1; }
         }
 

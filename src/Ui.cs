@@ -77,6 +77,12 @@ namespace Dusk
         // 3. Dat plaatje kleuren we in de tekstkleur en leggen we op het venster.
         public static Color Back = Color.FromArgb(32, 32, 34);   // ongeveer de kleur onder de tekst
 
+        // Op schermen met hoge resolutie (4K, schaal 150% en hoger) zetten we de letters eerst drie keer
+        // zo groot en schalen ze daarna terug. Dan zijn ook de bovenkant en onderkant van rondingen glad
+        // (GDI maakt alleen links en rechts glad), net zoals de apps van Windows 11 zelf.
+        public static int Super = 1;
+        public static void SetScale(float s) { Super = s >= 1.4f ? 3 : 1; }
+
         public static double Luma(Color c) { return (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0; }
 
         const TextFormatFlags Base = TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
@@ -116,11 +122,12 @@ namespace Dusk
                 IntPtr hdc = gm.GetHdc();
                 try
                 {
-                    IntPtr old = SelectObject(hdc, HFont(f));
+                    int k = Super;
+                    IntPtr old = SelectObject(hdc, HFont(f, k));
                     RECT rc = new RECT();
                     DrawTextW(hdc, s, s.Length, ref rc, 0x400 | 0x20 | 0x800);   // DT_CALCRECT, DT_SINGLELINE, DT_NOPREFIX
                     SelectObject(hdc, old);
-                    return rc.Right - rc.Left;
+                    return (float)Math.Ceiling((rc.Right - rc.Left) / (double)k);
                 }
                 finally { gm.ReleaseHdc(hdc); }
             }
@@ -148,9 +155,9 @@ namespace Dusk
         [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern int SetBkMode(IntPtr hdc, int mode);
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] static extern int DrawTextW(IntPtr hdc, string s, int n, ref RECT r, int format);
 
-        static IntPtr HFont(Font f)
+        static IntPtr HFont(Font f, int k)
         {
-            int px = (int)Math.Round(f.Unit == GraphicsUnit.Pixel ? f.Size : f.SizeInPoints * 96f / 72f);
+            int px = (int)Math.Round((f.Unit == GraphicsUnit.Pixel ? f.Size : f.SizeInPoints * 96f / 72f) * k);
             string key = f.Name + "|" + px + "|" + f.Bold;
             IntPtr h;
             if (HFonts.TryGetValue(key, out h)) return h;
@@ -169,7 +176,9 @@ namespace Dusk
         {
             if (string.IsNullOrEmpty(s) || r.Width <= 0 || r.Height <= 0 || c.A == 0) return;
             int w = r.Width, h = r.Height;
-            using (Bitmap mask = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
+            int k = OnWindows ? Super : 1;
+            int mw = w * k, mh = h * k;
+            using (Bitmap mask = new Bitmap(mw, mh, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
             using (Bitmap ink = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
             {
                 using (Graphics gm = Graphics.FromImage(mask))
@@ -181,10 +190,10 @@ namespace Dusk
                         IntPtr hdc = gm.GetHdc();
                         try
                         {
-                            IntPtr old = SelectObject(hdc, HFont(f));
+                            IntPtr old = SelectObject(hdc, HFont(f, k));
                             SetTextColor(hdc, 0xFFFFFF);
                             SetBkMode(hdc, 1);   // TRANSPARENT
-                            RECT rc = new RECT(); rc.Right = w; rc.Bottom = h;
+                            RECT rc = new RECT(); rc.Right = mw; rc.Bottom = mh;
                             DrawTextW(hdc, s, s.Length, ref rc, (int)fl & 0xFFFFFF);   // TextFormatFlags zijn dezelfde getallen als DT_*
                             SelectObject(hdc, old);
                         }
@@ -193,19 +202,30 @@ namespace Dusk
                     else TextRenderer.DrawText(gm, s, f, new Rectangle(0, 0, w, h), Color.White, Color.Black, fl);
                 }
                 int rgb = (c.R << 16) | (c.G << 8) | c.B;
-                Rectangle all = new Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData md = mask.LockBits(all, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
-                System.Drawing.Imaging.BitmapData id = ink.LockBits(all, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                System.Drawing.Imaging.BitmapData md = mask.LockBits(new Rectangle(0, 0, mw, mh), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                System.Drawing.Imaging.BitmapData id = ink.LockBits(new Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
                 try
                 {
+                    int[] src = new int[mw * k];   // k regels van het masker = 1 regel tekst
                     int[] row = new int[w];
+                    int div = 3 * k * k;
                     for (int y = 0; y < h; y++)
                     {
-                        System.Runtime.InteropServices.Marshal.Copy(new IntPtr(md.Scan0.ToInt64() + (long)y * md.Stride), row, 0, w);
+                        for (int j = 0; j < k; j++)
+                            System.Runtime.InteropServices.Marshal.Copy(new IntPtr(md.Scan0.ToInt64() + (long)(y * k + j) * md.Stride), src, j * mw, mw);
                         for (int x = 0; x < w; x++)
                         {
-                            int px = row[x];
-                            int v = (((px >> 16) & 255) + ((px >> 8) & 255) + (px & 255)) / 3;   // grijs, geen kleurrandjes
+                            int sum = 0;
+                            for (int j = 0; j < k; j++)
+                            {
+                                int o = j * mw + x * k;
+                                for (int i = 0; i < k; i++)
+                                {
+                                    int px = src[o + i];
+                                    sum += ((px >> 16) & 255) + ((px >> 8) & 255) + (px & 255);   // grijs, geen kleurrandjes
+                                }
+                            }
+                            int v = sum / div;
                             int a = v * c.A / 255;
                             row[x] = (a << 24) | rgb;
                         }

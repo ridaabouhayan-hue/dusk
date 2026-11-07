@@ -67,6 +67,7 @@ namespace Dusk
         {
             Palette p = Palette.Current();
             Ui.Setup(g);
+            Ui.SetScale(s);
             hits.Clear();
             Rectangle all = new Rectangle(0, 0, (int)(LogicalW * s), (int)(LogicalH * s));
             p.PaintBackdrop(g, all, onScreen, Settings.Current.Backdrop);
@@ -241,12 +242,15 @@ namespace Dusk
         }
 
         // ---------------------------------------------------------------- pagina Menu: welke knoppen, in welke volgorde
-        const float RowH = 48, RowStep = 54;
+        const float RowH = 48, RowStep = 54, ExtraH = 58;
+        int expanded = -1;           // welke regel is uitgeklapt (uitleg zichtbaar)
+        public int Expanded { set { expanded = value; } }   // voor de zelftest
         int dragIndex = -1;          // welke regel je aan het slepen bent
         float dragOffset;            // waar je de regel vastpakte (binnen de regel)
         float dragY;                 // waar de muis nu is
         float menuTop;               // bovenkant van de lijst (schermpunten)
         bool dragMoved;
+        int wasExpanded = -1;
 
         void PageMenu(Graphics g, Palette p, float x, float y, float w)
         {
@@ -261,7 +265,8 @@ namespace Dusk
                 bool on = !st.Hidden.Contains(a);
                 if (on) visibleNo++;
                 if (i == dragIndex) continue;   // de gesleepte regel tekenen we als laatste, boven de rest
-                DrawMenuRow(g, p, R(x, y + i * RowStep, w, RowH), i, a, on, on ? visibleNo : 0, false);
+                float ry = y + i * RowStep + (expanded >= 0 && i > expanded ? ExtraH : 0);
+                DrawMenuRow(g, p, R(x, ry, w, RowH + (i == expanded ? ExtraH : 0)), i, a, on, on ? visibleNo : 0, false);
             }
             if (dragIndex >= 0 && dragIndex < st.Order.Count)
             {
@@ -273,12 +278,17 @@ namespace Dusk
             }
         }
 
-        void DrawMenuRow(Graphics g, Palette p, RectangleF r, int index, PowerAction a, bool on, int number, bool lifted)
+        void DrawMenuRow(Graphics g, Palette p, RectangleF full, int index, PowerAction a, bool on, int number, bool lifted)
         {
             Settings st = Settings.Current;
-            Ui.Fill(g, r, S(10), lifted ? p.Solid : p.Fill);
-            if (lifted) Ui.Fill(g, r, S(10), p.Sel);
-            Ui.Stroke(g, r, S(10), lifted ? p.Accent : p.Stroke, Math.Max(1f, s));
+            bool open = index == expanded && !lifted;
+            Ui.Fill(g, full, S(10), lifted ? p.Solid : p.Fill);
+            if (lifted) Ui.Fill(g, full, S(10), p.Sel);
+            Ui.Stroke(g, full, S(10), lifted ? p.Accent : p.Stroke, Math.Max(1f, s));
+            RectangleF r = new RectangleF(full.X, full.Y, full.Width, S(RowH));   // de bovenste regel
+            if (open)
+                using (Font f = Ui.F(12, s, false))
+                    Ui.Wrap(g, Lang.T("desc." + Lang.Key(a)), f, p.T2, new RectangleF(r.X + S(74), r.Bottom - S(6), r.Width - S(74) - S(16), S(ExtraH)));
             // greep om te slepen
             RectangleF grip = new RectangleF(r.X, r.Y, S(40), r.Height);
             Ui.Icon(g, "grip", new RectangleF(grip.X + S(10), r.Y + (r.Height - S(20)) / 2, S(20), S(20)), p.T3, 2.6f);
@@ -291,6 +301,14 @@ namespace Dusk
                 Ui.Key(g, number.ToString(), kb, s, Color.FromArgb(p.Dark ? 70 : 60, p.T1), p.T2);
             }
             RectangleF area = new RectangleF(r.Right - S(96), r.Y, S(80), r.Height);
+            // pijltje: uitleg uit- of inklappen
+            RectangleF chev = new RectangleF(r.Right - S(172), r.Y + (r.Height - S(30)) / 2, S(30), S(30));
+            string cid = "mx" + index;
+            if (!lifted && hover == cid) Ui.Fill(g, chev, S(6), p.Sel);
+            GraphicsState gs = g.Save();
+            if (open) { g.TranslateTransform(chev.X + chev.Width / 2, chev.Y + chev.Height / 2); g.RotateTransform(180); g.TranslateTransform(-(chev.X + chev.Width / 2), -(chev.Y + chev.Height / 2)); }
+            Ui.Icon(g, "chevron", new RectangleF(chev.X + S(7), chev.Y + S(7), S(16), S(16)), p.T2, 2f);
+            g.Restore(gs);
             if (lifted) return;
             // aan of uit; minstens een optie moet aan blijven
             Toggle(g, p, area, on, "mt" + index, delegate
@@ -301,7 +319,8 @@ namespace Dusk
                 Usage.Count("menu." + (on ? "uit." : "aan.") + Lang.Key(a));
                 app.SettingsChanged();
             });
-            hits.Insert(0, new Hit { R = new RectangleF(r.X, r.Y, r.Width - S(100), r.Height), Id = "drag" + index, Do = delegate { } });
+            Add(chev, cid, delegate { expanded = expanded == index ? -1 : index; if (expanded >= 0) Usage.Count("menu.uitleg." + Lang.Key(a)); });
+            hits.Insert(0, new Hit { R = new RectangleF(r.X, r.Y, r.Width - S(176), r.Height), Id = "drag" + index, Do = delegate { } });
         }
 
         // Slepen: muis omlaag op een regel, bewegen, loslaten
@@ -312,7 +331,9 @@ namespace Dusk
             Hit h = HitAt(e.Location);
             if (h == null || !h.Id.StartsWith("drag")) return;
             dragIndex = int.Parse(h.Id.Substring(4));
-            dragOffset = e.Y - (menuTop + dragIndex * S(RowStep));
+            wasExpanded = expanded;
+            expanded = -1;   // tijdens het slepen is alles ingeklapt
+            dragOffset = Math.Max(0, Math.Min(S(RowH), e.Y - (menuTop + dragIndex * S(RowStep))));
             dragY = e.Y;
             dragMoved = false;
             Capture = true;
@@ -341,6 +362,8 @@ namespace Dusk
         {
             base.OnMouseUp(e);
             if (dragIndex < 0) return;
+            // alleen geklikt, niet gesleept: uitleg open of dicht
+            if (!dragMoved) expanded = wasExpanded == dragIndex ? -1 : dragIndex;
             dragIndex = -1;
             Capture = false;
             if (dragMoved) { Usage.Count("menu.gesleept"); app.SettingsChanged(); }
@@ -447,6 +470,9 @@ namespace Dusk
             for (int i = 0; i < delays.Length; i++) delays[i] = DelayLabel(Settings.DelayChoices[i]);
             a = Card(g, p, x, y, w, Lang.T("set.delay"), null);
             Choice(g, p, a, DelayLabel(st.DelaySeconds), "delay", delays, delegate(int i) { st.DelaySeconds = Settings.DelayChoices[i]; });
+            y += CardStep;
+            a = Card(g, p, x, y, w, Lang.T("set.direct"), null);
+            Toggle(g, p, a, st.DirectRun, "direct", delegate { st.DirectRun = !st.DirectRun; app.SettingsChanged(); });
             y += CardStep;
             List<string> shown = new List<string>();
             foreach (string pr in st.Presets) shown.Add(TimeInput.Label(TimeInput.Parse(pr)));

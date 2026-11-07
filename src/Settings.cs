@@ -29,6 +29,7 @@ namespace Dusk
         public PowerAction DefaultAction = PowerAction.Shutdown;
         public int Zoom = 100;                  // grootte van het venster en Instellingen, in procenten
         public bool TrackUsage = true;          // gebruik bijhouden in gebruik.txt (alleen op deze pc)
+        public bool DirectRun = false;          // cijfer of klik voert meteen uit, zonder Enter
 
         public static readonly PowerAction[] AllActions = { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Shutdown, PowerAction.Lock, PowerAction.Logoff, PowerAction.SwitchUser };
         public static readonly PowerAction[] DefaultHidden = { PowerAction.Lock, PowerAction.Logoff, PowerAction.SwitchUser };
@@ -107,6 +108,7 @@ namespace Dusk
             sb.AppendLine("standaard=" + ((int)DefaultAction).ToString(C));
             sb.AppendLine("grootte=" + Zoom.ToString(C));
             sb.AppendLine("gebruik=" + (TrackUsage ? "1" : "0"));
+            sb.AppendLine("direct=" + (DirectRun ? "1" : "0"));
             return sb.ToString();
         }
 
@@ -137,6 +139,7 @@ namespace Dusk
                     case "openen": if (Array.IndexOf(OpenChoices, v) >= 0) s.OpenAt = v; break;
                     case "grootte": if (isNum && Array.IndexOf(ZoomChoices, n) >= 0) s.Zoom = n; break;
                     case "gebruik": s.TrackUsage = v != "0"; break;
+                    case "direct": s.DirectRun = v == "1"; break;
                     case "plek":
                         {
                             string[] xy = v.Split(',');

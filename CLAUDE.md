@@ -15,7 +15,8 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 - Timer: standaard Nu, + en − in stappen (standaard 15 min), vaste tijden 15 min, 30 min, 1 uur, 2 uur plus eigen vaste tijden via + (max 5). Geen "Wanneer"-label.
 - Tijd kiezen met twee draaiwieltjes (uren, minuten), "Over" of "Om", scrollen, pijltjes of typen.
 - Korte knop ("Afsluiten" of "Start timer") met Enter; erboven een regel die zegt wat er gebeurt.
-- Aftellen bij Nu (standaard 10 seconden, instelbaar) zodat je nog kunt stoppen.
+- Aftellen bij Nu (standaard 10 seconden, instelbaar) zodat je nog kunt stoppen; groot icoon en grote naam van de actie. Optie "Cijfer of klik voert meteen uit" (`Settings.DirectRun`, standaard uit).
+- Instellingen > Menu: per knop een pijltje dat korte uitleg uitklapt (`desc.*` in lang.py).
 - Openen: Slim (taakbalk bij klik op het icoon, anders midden), bij de taakbalk, midden, of laatste plek (verslepen aan de bovenkant).
 - Iconen: slaapstand een volle maan met zz, sluimerstand een sneeuwvlok (winterslaap), tandwiel voor instellingen.
 - Thema volgt Windows. Achtergrond: Mica (vervaagd bureaublad), effen of schemer. Accent standaard lila; geen groen.
@@ -26,7 +27,7 @@ Dusk is een lichte afsluit-app voor Windows 11 (slaapstand, sluimerstand, opnieu
 - Alles wordt zelf getekend. Het hoofdvenster is een gelaagd venster (UpdateLayeredWindow).
 - Stroom (`src/Power.cs`): SetSuspendState voor slaap en sluimer, maar bij Modern Standby het scherm uit (NtPowerInformation ScreenOff, zoals het startmenu). Nooit `rundll32 powrprof.dll,SetSuspendState`. Afsluiten met ExitWindowsEx, hybride als Snel opstarten aan staat.
 - Teksten in vier talen: pas `build/lang.py` aan en draai het; dat schrijft `src/Lang.cs`.
-- Tekst: altijd via `Ui.Text`/`TextAt`/`Wrap` (witte GDI-tekst als masker, grijs gladgemaakt, ingekleurd). Geen DrawString of TextRenderer los gebruiken.
+- Tekst: altijd via `Ui.Text`/`TextAt`/`Wrap` (witte GDI-tekst als masker, grijs gladgemaakt, ingekleurd; vanaf schaal 1,4 drie keer zo groot gezet en teruggeschaald, `Ui.SetScale`). Geen DrawString of TextRenderer los gebruiken.
 - Gebruik en fouten: `Usage.Count("...")` schrijft tellers naar `%APPDATA%\Dusk\gebruik.txt`, fouten gaan naar `log.txt`. Alleen lokaal, uit te zetten in Over.
 - Tests: `tests/Tests.cs`. Zelftest met schermafbeeldingen: `Dusk.exe --zelftest --map <map>`.
 

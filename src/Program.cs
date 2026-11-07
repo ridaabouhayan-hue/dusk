@@ -11,14 +11,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.4.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.4.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.0.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.4.0";
+        public const string Version = "1.5.0";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -95,6 +95,7 @@ namespace Dusk
             Shot(dir, "10-waarschuwing", true, "mica", "lila", delegate { app.Scheduler.OnTick(); fl.TestSet(Flyout.View.Running, 0, TimeChoice.Now, null, false); return Compose(fl, at); });
             app.Scheduler.Cancel();
             Shot(dir, "11-vijf-tellen", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 3, TimeChoice.Now, null, false); return Compose(fl, at); });
+            Shot(dir, "11b-aftellen-licht-150", false, "mica", "lila", delegate { fl.TestSet(Flyout.View.Undo, 0, TimeChoice.Now, null, false); return Compose(fl, at, 1.5f); });
 
             Shot(dir, "15-kiezen-150-procent", true, "mica", "lila", delegate { fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); return Compose(fl, at, 1.5f); });
             Shot(dir, "16-licht-150-procent", false, "mica", "lila", delegate { Settings.Current.Hidden = new List<PowerAction> { PowerAction.Hibernate }; fl.TestSet(Flyout.View.Choose, 3, TimeChoice.Now, null, false); Bitmap b = Compose(fl, at, 1.5f); Settings.Current.Hidden = new List<PowerAction>(Settings.DefaultHidden); return b; });
@@ -115,6 +116,7 @@ namespace Dusk
             Shot(dir, "27-instellingen-uiterlijk-licht", false, "mica", "lila", delegate { return SettingsShot(app, 2); });
             Shot(dir, "28-instellingen-algemeen-licht", false, "solid", "blauw", delegate { return SettingsShot(app, 0); });
             Shot(dir, "29-instellingen-schemer", true, "dusk", "perzik", delegate { return SettingsShot(app, 3); });
+            Shot(dir, "29c-menu-uitleg", true, "mica", "lila", delegate { return SettingsShot(app, SettingsForm.MenuPage, 1); });
             Shot(dir, "29b-menu-licht", false, "solid", "lila", delegate { Settings.Current.Hidden.Remove(PowerAction.SwitchUser); Bitmap b = SettingsShot(app, SettingsForm.MenuPage); Settings.Current.Hidden.Add(PowerAction.SwitchUser); return b; });
 
             // taakbalkicoontjes
@@ -163,11 +165,14 @@ namespace Dusk
             }
         }
 
-        static Bitmap SettingsShot(App app, int page)
+        static Bitmap SettingsShot(App app, int page) { return SettingsShot(app, page, -1); }
+
+        static Bitmap SettingsShot(App app, int page, int expanded)
         {
             using (SettingsForm f = new SettingsForm(app))
             {
                 f.Page = page;
+                f.Expanded = expanded;
                 Bitmap b = new Bitmap(f.ClientSize.Width, f.ClientSize.Height, PixelFormat.Format32bppRgb);
                 using (Graphics g = Graphics.FromImage(b)) f.PaintAll(g, new Rectangle(500, 200, b.Width, b.Height));
                 return b;

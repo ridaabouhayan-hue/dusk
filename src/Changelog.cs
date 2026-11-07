@@ -12,6 +12,11 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.5.0", "8 november 2026",
+                L("Aftellen groter: groot icoon en grote naam van wat er gaat gebeuren", "Bigger countdown: large icon and name of what is about to happen"),
+                L("Nieuwe keuze: cijfer of klik voert meteen uit, zonder Enter (Sneltoets en timer)", "New option: a number or click runs right away, without Enter (Shortcut and timer)"),
+                L("Bij Menu: klik op het pijltje voor korte uitleg bij elke knop", "In Menu: click the arrow for a short explanation of each button"),
+                L("Nog gladdere letters op 4K-schermen", "Even smoother text on 4K screens")),
             V("1.4.0", "8 november 2026",
                 L("Nieuw: Gebruiker wisselen, net als in het startmenu", "New: Switch user, just like the Start menu"),
                 L("Instellingen > Menu: kies welke knoppen je ziet en sleep ze in je eigen volgorde", "Settings > Menu: choose which buttons you see and drag them into your own order"),
