@@ -10,7 +10,7 @@ namespace Dusk
     // Tekenhulpjes: lettertypes, afgeronde vlakken, icoontjes en het logo.
     static class Ui
     {
-        static string family, display, familyBold, displayBold;
+        static string family, display;
 
         public static string Family
         {
@@ -29,16 +29,11 @@ namespace Dusk
             catch { }
             family = have.Contains("Segoe UI Variable Text") ? "Segoe UI Variable Text" : have.Contains("Segoe UI") ? "Segoe UI" : FontFamily.GenericSansSerif.Name;
             display = have.Contains("Segoe UI Variable Display") ? "Segoe UI Variable Display" : family;
-            // Vet zoals Windows 11 het doet: halfvet (Semibold) als dat er is
-            familyBold = have.Contains(family + " Semibold") ? family + " Semibold" : null;
-            displayBold = have.Contains(display + " Semibold") ? display + " Semibold" : null;
         }
 
         public static Font F(float px, float s, bool bold)
         {
-            string fam = Family;
-            if (bold && familyBold != null) return new Font(familyBold, (px + Bump(px)) * s, FontStyle.Regular, GraphicsUnit.Pixel);
-            return new Font(fam, (px + Bump(px)) * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+            return new Font(Family, (px + Bump(px)) * s, bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
         }
 
         // Kleine tekst een tikje groter, zodat alles goed leesbaar is (12 wordt 13, 14 wordt 15)
@@ -46,9 +41,7 @@ namespace Dusk
 
         public static Font Big(float px, float s)
         {
-            string fam = Display;
-            if (displayBold != null) return new Font(displayBold, px * s, FontStyle.Regular, GraphicsUnit.Pixel);
-            return new Font(fam, px * s, FontStyle.Bold, GraphicsUnit.Pixel);
+            return new Font(Display, px * s, FontStyle.Bold, GraphicsUnit.Pixel);
         }
 
         public static void Setup(Graphics g)
@@ -132,7 +125,60 @@ namespace Dusk
 
         public static float Width(Graphics g, string s, Font f)
         {
-            return TextRenderer.MeasureText(g, s, f, new Size(100000, 100000), TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
+            if (string.IsNullOrEmpty(s)) return 0;
+            if (!OnWindows) return TextRenderer.MeasureText(g, s, f, new Size(100000, 100000), TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
+            using (Graphics gm = Graphics.FromImage(MeasureBmp))
+            {
+                IntPtr hdc = gm.GetHdc();
+                try
+                {
+                    IntPtr old = SelectObject(hdc, HFont(f));
+                    RECT rc = new RECT();
+                    DrawTextW(hdc, s, s.Length, ref rc, 0x400 | 0x20 | 0x800);   // DT_CALCRECT, DT_SINGLELINE, DT_NOPREFIX
+                    SelectObject(hdc, old);
+                    return rc.Right - rc.Left;
+                }
+                finally { gm.ReleaseHdc(hdc); }
+            }
+        }
+
+        // ---- rechtstreeks naar Windows (GDI), zodat we zelf het gewicht kiezen: halfvet (600) zoals Windows 11
+        static readonly bool OnWindows = Environment.OSVersion.Platform == PlatformID.Win32NT;
+        static readonly Bitmap MeasureBmp = new Bitmap(1, 1);
+        static readonly Dictionary<string, IntPtr> HFonts = new Dictionary<string, IntPtr>();
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        struct LOGFONT
+        {
+            public int lfHeight, lfWidth, lfEscapement, lfOrientation, lfWeight;
+            public byte lfItalic, lfUnderline, lfStrikeOut, lfCharSet, lfOutPrecision, lfClipPrecision, lfQuality, lfPitchAndFamily;
+            [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 32)] public string lfFaceName;
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        struct RECT { public int Left, Top, Right, Bottom; }
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] static extern IntPtr CreateFontIndirectW(ref LOGFONT lf);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern int SetTextColor(IntPtr hdc, int color);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] static extern int SetBkMode(IntPtr hdc, int mode);
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] static extern int DrawTextW(IntPtr hdc, string s, int n, ref RECT r, int format);
+
+        static IntPtr HFont(Font f)
+        {
+            int px = (int)Math.Round(f.Unit == GraphicsUnit.Pixel ? f.Size : f.SizeInPoints * 96f / 72f);
+            string key = f.Name + "|" + px + "|" + f.Bold;
+            IntPtr h;
+            if (HFonts.TryGetValue(key, out h)) return h;
+            LOGFONT lf = new LOGFONT();
+            lf.lfHeight = -px;
+            lf.lfWeight = f.Bold ? 600 : 400;
+            lf.lfCharSet = 1;        // DEFAULT_CHARSET
+            lf.lfQuality = 5;        // CLEARTYPE_QUALITY (alleen voor het masker; daarna maken we het grijs)
+            lf.lfFaceName = f.Name;
+            h = CreateFontIndirectW(ref lf);
+            HFonts[key] = h;
+            return h;
         }
 
         static void Draw(Graphics g, string s, Font f, Color c, Rectangle r, TextFormatFlags fl)
@@ -146,7 +192,21 @@ namespace Dusk
                 {
                     gm.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
                     gm.Clear(Color.Black);
-                    TextRenderer.DrawText(gm, s, f, new Rectangle(0, 0, w, h), Color.White, Color.Black, fl);
+                    if (OnWindows)
+                    {
+                        IntPtr hdc = gm.GetHdc();
+                        try
+                        {
+                            IntPtr old = SelectObject(hdc, HFont(f));
+                            SetTextColor(hdc, 0xFFFFFF);
+                            SetBkMode(hdc, 1);   // TRANSPARENT
+                            RECT rc = new RECT(); rc.Right = w; rc.Bottom = h;
+                            DrawTextW(hdc, s, s.Length, ref rc, (int)fl & 0xFFFFFF);   // TextFormatFlags zijn dezelfde getallen als DT_*
+                            SelectObject(hdc, old);
+                        }
+                        finally { gm.ReleaseHdc(hdc); }
+                    }
+                    else TextRenderer.DrawText(gm, s, f, new Rectangle(0, 0, w, h), Color.White, Color.Black, fl);
                 }
                 bool darkText = Luma(c) < Luma(Back);
                 int rgb = (c.R << 16) | (c.G << 8) | c.B;

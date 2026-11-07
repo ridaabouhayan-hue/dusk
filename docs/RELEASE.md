@@ -1,4 +1,9 @@
-Dusk 1.3.0
+Dusk 1.3.1
+
+**Opgelost in 1.3.1**
+- Vette woorden (zoals de knop en de gekozen regel) zijn weer halfvet, zoals in Windows 11.
+
+**Uit 1.3.0**
 
 **Nieuw**
 - Grootte kiezen bij Instellingen > Uiterlijk: klein, normaal, groot of extra groot. Het venster en Instellingen veranderen meteen mee. Dusk past zich daarnaast nog steeds vanzelf aan de schaal van je scherm aan.
