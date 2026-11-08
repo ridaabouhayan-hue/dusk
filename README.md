@@ -18,6 +18,16 @@ Kijk bij **Releases** en kies `Dusk-Setup.exe`. De installer heeft geen beheerde
 - **Timer loopt:** het icoon in de taakbalk dooft langzaam uit. Een minuut van tevoren krijg je een melding met *+15 min* en *Annuleren*.
 - **Instellingen:** het tandwiel, `Ctrl + ,` of rechtsklik op het icoon. Taal (Nederlands, English, Español, Français), licht of donker, achtergrond (Mica, effen, schemer), accentkleur, sneltoets en meer.
 
+## Vanaf een toets, muis of Stream Deck
+Start `Dusk.exe` nog een keer en het venster verschijnt (nog een keer: het verdwijnt). Dat werkt met elke knop die een programma kan openen, zoals "Programma openen" in Logi Options+.
+Je kunt ook meteen een actie meegeven; dan begint het gewone aftellen:
+
+`Dusk.exe --slaapstand`, `--sluimerstand`, `--herstarten`, `--afsluiten`, `--vergrendelen`, `--afmelden`, `--wisselen`
+
+Dusk staat in `%LOCALAPPDATA%\Programs\Dusk\Dusk.exe`.
+
+Let op: de vergrendeltoets van een toetsenbord (het slotje) stuurt Windows + L. Die combinatie handelt Windows zelf af voordat een programma er iets mee kan, dus omzetten werkt daar niet betrouwbaar. Kies een andere toets.
+
 ## Bijwerken
 
 Nieuwe versies installeer je met een klik bij **Instellingen > Bijwerken**. Dusk kijkt zelf af en toe of er iets nieuws is en meldt het dan (uit te zetten). Het bestand wordt gecontroleerd voordat het wordt geïnstalleerd.

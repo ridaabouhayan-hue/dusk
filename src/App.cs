@@ -290,7 +290,15 @@ namespace Dusk
             protected override void WndProc(ref Message m)
             {
                 if (m.Msg == W.WM_HOTKEY && m.WParam.ToInt32() == Hotkeys.Id) { app.Toggle(Flyout.Origin.Hotkey); return; }
-                if (m.Msg == ShowMessageId && ShowMessageId != 0) { app.Flyout.ShowFlyout(true, Flyout.Origin.Launch); return; }
+                if (m.Msg == ShowMessageId && ShowMessageId != 0)
+                {
+                    // Dusk nog een keer gestart (startmenu, Logi Options+, snelkoppeling):
+                    // 0 = venster tonen of weer verbergen, net als de sneltoets; anders meteen die actie met aftellen
+                    long w = m.WParam.ToInt64();
+                    if (w >= 1 && w <= Settings.AllActions.Length) { Usage.Count("opnieuw-gestart.actie"); app.Flyout.StartNow((PowerAction)(w - 1)); }
+                    else { Usage.Count("opnieuw-gestart"); app.Toggle(Flyout.Origin.Launch); }
+                    return;
+                }
                 if (m.Msg == W.WM_SETTINGCHANGE)
                 {
                     string area = m.LParam != IntPtr.Zero ? System.Runtime.InteropServices.Marshal.PtrToStringUni(m.LParam) : null;

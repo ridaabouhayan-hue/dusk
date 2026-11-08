@@ -12,6 +12,9 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.5.1", "8 november 2026",
+                L("Dusk nog een keer starten toont het venster, of verbergt het weer (handig voor Logi Options+)", "Starting Dusk again shows the window, or hides it again (handy for Logi Options+)"),
+                L("Acties meegeven bij het starten, zoals Dusk.exe --afsluiten", "Pass an action when starting, like Dusk.exe --shutdown")),
             V("1.5.0", "8 november 2026",
                 L("Aftellen groter: groot icoon en grote naam van wat er gaat gebeuren", "Bigger countdown: large icon and name of what is about to happen"),
                 L("Nieuwe keuze: cijfer of klik voert meteen uit, zonder Enter (Sneltoets en timer)", "New option: a number or click runs right away, without Enter (Shortcut and timer)"),

@@ -11,14 +11,14 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyProduct("Dusk")]
 [assembly: System.Reflection.AssemblyCompany("Rida Abouhayan")]
 [assembly: System.Reflection.AssemblyDescription("Afsluiten, slaapstand en sluimerstand met je toetsenbord")]
-[assembly: System.Reflection.AssemblyVersion("1.5.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.5.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.5.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.5.1.0")]
 
 namespace Dusk
 {
     static class Program
     {
-        public const string Version = "1.5.0";
+        public const string Version = "1.5.1";
         public const string RepoUrl = "https://github.com/ridaabouhayan-hue/dusk";
         public static bool SelfTest;
 
@@ -29,13 +29,14 @@ namespace Dusk
             if (SelfTest) return SelfTestRun(args);
 
             bool startup = Array.IndexOf(args, "--opstarten") >= 0;
+            int action = ActionFromArgs(args);   // bijvoorbeeld "Dusk.exe --afsluiten" vanuit Logi Options+ of een snelkoppeling
             bool created;
             using (Mutex m = new Mutex(true, "Dusk_EenKeerStarten", out created))
             {
                 if (!created)
                 {
-                    // Dusk draait al: dat exemplaar het venster laten tonen en zelf stoppen
-                    if (App.ShowMessageId != 0) W.PostMessage(W.HWND_BROADCAST, App.ShowMessageId, IntPtr.Zero, IntPtr.Zero);
+                    // Dusk draait al: dat exemplaar het venster laten tonen (of de actie laten starten) en zelf stoppen
+                    if (App.ShowMessageId != 0) W.PostMessage(W.HWND_BROADCAST, App.ShowMessageId, new IntPtr(action + 1), IntPtr.Zero);
                     return 0;
                 }
                 SetDpiAwareness();
@@ -47,9 +48,28 @@ namespace Dusk
                 Settings.Load();
                 Usage.Count("gestart");
                 Log.Info("Start Dusk " + Version + " op " + Environment.OSVersion + (startup ? " (met Windows)" : ""));
-                Application.Run(new App(startup));
+                App app = new App(startup);
+                if (action >= 0) app.Flyout.StartNow((PowerAction)action);
+                Application.Run(app);
                 return 0;
             }
+        }
+
+        // Een actie meegeven bij het starten: --slaapstand, --sluimerstand, --herstarten, --afsluiten,
+        // --vergrendelen, --afmelden, --wisselen (of de Engelse namen: --sleep, --shutdown, ...). -1 = geen.
+        public static int ActionFromArgs(string[] args)
+        {
+            string[,] names = {
+                { "slaapstand", "sleep" }, { "sluimerstand", "hibernate" }, { "herstarten", "restart" }, { "afsluiten", "shutdown" },
+                { "vergrendelen", "lock" }, { "afmelden", "logoff" }, { "wisselen", "switchuser" } };
+            PowerAction[] acts = { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Restart, PowerAction.Shutdown, PowerAction.Lock, PowerAction.Logoff, PowerAction.SwitchUser };
+            foreach (string raw in args)
+            {
+                string a = raw.TrimStart('-', '/').ToLowerInvariant();
+                for (int i = 0; i < acts.Length; i++)
+                    if (a == names[i, 0] || a == names[i, 1]) return (int)acts[i];
+            }
+            return -1;
         }
 
         static void SetDpiAwareness()

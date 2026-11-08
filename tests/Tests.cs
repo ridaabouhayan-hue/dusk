@@ -177,6 +177,11 @@ namespace Dusk
             Eq(PowerAction.SwitchUser, m4.DefaultAction, "gebruiker wisselen als standaard");
             Eq(115, Settings.Parse("grootte=115\n").Zoom, "grootte 115");
             Eq(true, new Settings().TrackUsage, "gebruik standaard aan");
+            // acties meegeven bij het starten
+            Eq((int)PowerAction.Shutdown, Program.ActionFromArgs(new[] { "--afsluiten" }), "argument afsluiten");
+            Eq((int)PowerAction.Sleep, Program.ActionFromArgs(new[] { "/SLEEP" }), "argument sleep");
+            Eq((int)PowerAction.SwitchUser, Program.ActionFromArgs(new[] { "--opstarten", "--wisselen" }), "argument wisselen");
+            Eq(-1, Program.ActionFromArgs(new[] { "--opstarten" }), "geen actie");
             // gebruik: heen en terug, kapotte regels negeren
             SortedDictionary<string, int> u = Usage.Parse("# kop\nactie.afsluiten=3\nkapot\ntimer.gestart=x\ngestart=12\n");
             Eq(2, u.Count, "gebruik: alleen geldige regels");
