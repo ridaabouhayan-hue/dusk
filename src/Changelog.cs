@@ -12,6 +12,9 @@ namespace Dusk
         static string[] L(string nl, string en) { return new string[] { nl, en }; }
 
         public static readonly Version[] All = {
+            V("1.5.2", "23 november 2026",
+                L("Afsluiten en opnieuw opstarten blijven niet meer hangen als er nog iemand anders is aangemeld", "Shut down and restart no longer hang when someone else is still signed in"),
+                L("Dusk laat vooraf zien wie er nog is aangemeld en dan wordt afgemeld", "Dusk shows beforehand who is still signed in and will be signed out")),
             V("1.5.1", "8 november 2026",
                 L("Dusk nog een keer starten toont het venster, of verbergt het weer (handig voor Logi Options+)", "Starting Dusk again shows the window, or hides it again (handy for Logi Options+)"),
                 L("Acties meegeven bij het starten, zoals Dusk.exe --afsluiten", "Pass an action when starting, like Dusk.exe --shutdown")),

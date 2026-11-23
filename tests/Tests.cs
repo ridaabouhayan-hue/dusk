@@ -177,6 +177,9 @@ namespace Dusk
             Eq(PowerAction.SwitchUser, m4.DefaultAction, "gebruiker wisselen als standaard");
             Eq(115, Settings.Parse("grootte=115\n").Zoom, "grootte 115");
             Eq(true, new Settings().TrackUsage, "gebruik standaard aan");
+            // afsluiten met andere gebruikers aangemeld
+            Eq(Power.SHUTDOWN_FORCE_OTHERS | Power.SHUTDOWN_POWEROFF | Power.SHUTDOWN_HYBRID, Power.InitiateFlags(PowerAction.Shutdown, false, true), "anderen: afsluiten hybride");
+            Eq(Power.SHUTDOWN_FORCE_OTHERS | Power.SHUTDOWN_RESTART | Power.SHUTDOWN_FORCE_SELF, Power.InitiateFlags(PowerAction.Restart, true, true), "anderen: herstarten geforceerd, nooit hybride");
             // acties meegeven bij het starten
             Eq((int)PowerAction.Shutdown, Program.ActionFromArgs(new[] { "--afsluiten" }), "argument afsluiten");
             Eq((int)PowerAction.Sleep, Program.ActionFromArgs(new[] { "/SLEEP" }), "argument sleep");

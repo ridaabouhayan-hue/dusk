@@ -297,6 +297,15 @@ namespace Dusk
         }
 
         // De regel boven de knop: wat er gebeurt als je op Enter drukt (of een foutmelding)
+        // Is er nog iemand anders aangemeld? Dan zeggen we dat zelf, in plaats van dat Windows het vraagt en blijft hangen.
+        string OthersWarning(PowerAction a)
+        {
+            if (a != PowerAction.Shutdown && a != PowerAction.Restart) return null;
+            List<string> o = Power.OtherUsers();
+            if (o.Count == 0) return null;
+            return Lang.F("warn.others", string.Join(", ", o.ToArray()));
+        }
+
         void DrawInfo(Graphics g, Palette p, string text, bool error)
         {
             using (Font f = Ui.F(12, s, error)) Ui.Text(g, text, f, error ? p.Danger : p.T2, R(Pad, InfoY, PanelW - 2 * Pad, 20), 0);
@@ -375,7 +384,11 @@ namespace Dusk
             }
 
             if (message != null) DrawInfo(g, p, message, messageIsError);
-            else DrawInfo(g, p, Lang.Info(SelectedAction, choice, Settings.Current.DelaySeconds, DateTime.Now), false);
+            else
+            {
+                string warn = OthersWarning(SelectedAction);
+                DrawInfo(g, p, warn ?? Lang.Info(SelectedAction, choice, Settings.Current.DelaySeconds, DateTime.Now), warn != null);
+            }
             DrawGo(g, p, R(Pad, BtnY, PanelW - 2 * Pad, 40), choice.IsNow ? Lang.ActionName(SelectedAction) : Lang.T("btn.start"), "go", true);
         }
 
@@ -486,7 +499,8 @@ namespace Dusk
             PointF c = new PointF(S(cx), S(ringTop + (bottom - ringTop) / 2));
             Ring(g, p, c, S(r), S(5), frac);
             using (Font f = Ui.Big(Math.Min(44, r * 0.8f), s)) Ui.Text(g, Math.Ceiling(left).ToString("0"), f, p.T1, new RectangleF(c.X - S(r), c.Y - S(r), S(2 * r), S(2 * r)), 0);
-            DrawInfo(g, p, Lang.T("undo.hint"), false);
+            string warn = OthersWarning(undoAction);
+            DrawInfo(g, p, warn ?? Lang.T("undo.hint"), warn != null);
             float bw = (PanelW - 2 * Pad - 8) / 2f;
             DrawOutlineButton(g, p, R(Pad, BtnY, bw, 40), Lang.T("btn.cancel"), "undo.cancel");
             DrawGo(g, p, R(Pad + bw + 8, BtnY, bw, 40), Lang.T("btn.donow"), "undo.now", false);

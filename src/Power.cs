@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
@@ -77,6 +78,69 @@ namespace Dusk
             catch { return false; }
         }
 
+        // ---------------------------------------------------------------- andere gebruikers
+        // Wie is er nog meer aangemeld op deze pc (bijvoorbeeld via Gebruiker wisselen)?
+        // Dan vraagt Windows bij afsluiten "Iemand anders gebruikt deze pc nog" en blijft het hangen.
+        static List<string> othersCache;
+        static DateTime othersAt;
+
+        public static List<string> OtherUsers()
+        {
+            if (othersCache != null && (DateTime.UtcNow - othersAt).TotalSeconds < 3) return othersCache;
+            List<string> l = new List<string>();
+            if (!Program.SelfTest && Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                IntPtr list;
+                int count;
+                try
+                {
+                    int mine = System.Diagnostics.Process.GetCurrentProcess().SessionId;
+                    if (W.WTSEnumerateSessionsW(IntPtr.Zero, 0, 1, out list, out count))
+                    {
+                        try
+                        {
+                            int size = Marshal.SizeOf(typeof(W.WTS_SESSION_INFO));
+                            for (int i = 0; i < count; i++)
+                            {
+                                W.WTS_SESSION_INFO si = (W.WTS_SESSION_INFO)Marshal.PtrToStructure(new IntPtr(list.ToInt64() + (long)i * size), typeof(W.WTS_SESSION_INFO));
+                                if (si.SessionId == mine || si.SessionId == 0) continue;
+                                if (si.State != 0 && si.State != 4) continue;   // alleen actief of verbroken (gewisseld)
+                                string name = SessionUser(si.SessionId);
+                                if (!string.IsNullOrEmpty(name) && !l.Contains(name)) l.Add(name);
+                            }
+                        }
+                        finally { W.WTSFreeMemory(list); }
+                    }
+                }
+                catch (Exception e) { Log.Error("Andere gebruikers zoeken", e); }
+            }
+            othersCache = l;
+            othersAt = DateTime.UtcNow;
+            return l;
+        }
+
+        static string SessionUser(int id)
+        {
+            IntPtr buf;
+            int bytes;
+            if (!W.WTSQuerySessionInformationW(IntPtr.Zero, id, 5 /* WTSUserName */, out buf, out bytes)) return null;
+            try { return Marshal.PtrToStringUni(buf); }
+            finally { W.WTSFreeMemory(buf); }
+        }
+
+        // Vlaggen voor InitiateShutdown: andere gebruikers worden afgemeld, zodat Windows niet blijft wachten
+        public const uint SHUTDOWN_FORCE_OTHERS = 0x1, SHUTDOWN_FORCE_SELF = 0x2, SHUTDOWN_RESTART = 0x4, SHUTDOWN_POWEROFF = 0x8, SHUTDOWN_HYBRID = 0x200;
+
+        public static uint InitiateFlags(PowerAction a, bool forced, bool hiberboot)
+        {
+            uint f = SHUTDOWN_FORCE_OTHERS;
+            if (a == PowerAction.Restart) f |= SHUTDOWN_RESTART;
+            else if (a == PowerAction.Shutdown) { f |= SHUTDOWN_POWEROFF; if (hiberboot) f |= SHUTDOWN_HYBRID; }
+            else throw new ArgumentException("Geen afsluitactie: " + a);
+            if (forced) f |= SHUTDOWN_FORCE_SELF;
+            return f;
+        }
+
         // Welke vlaggen krijgt ExitWindowsEx? Los gezet zodat de tests het kunnen controleren.
         public static uint ExitFlags(PowerAction a, bool forced, bool hiberboot)
         {
@@ -124,7 +188,16 @@ namespace Dusk
                         return null;
                     default:
                         if (a != PowerAction.Logoff && !EnableShutdownPrivilege()) return "err.privilege";
-                        uint flags = ExitFlags(a, forced, a == PowerAction.Shutdown && HiberbootEnabled());
+                        bool hb = a == PowerAction.Shutdown && HiberbootEnabled();
+                        if (a != PowerAction.Logoff && OtherUsers().Count > 0)
+                        {
+                            // Nog iemand aangemeld: Dusk heeft dat al laten zien tijdens het aftellen,
+                            // dus Windows hoeft het niet nog eens te vragen (en te blijven hangen)
+                            uint res = W.InitiateShutdownW(null, null, 0, InitiateFlags(a, forced, hb), SHTDN_REASON_FLAG_PLANNED);
+                            if (res == 0) return null;
+                            Log.Info("InitiateShutdown gaf " + res + ", nu met ExitWindowsEx");
+                        }
+                        uint flags = ExitFlags(a, forced, hb);
                         if (!W.ExitWindowsEx(flags, SHTDN_REASON_FLAG_PLANNED)) return Fail("ExitWindowsEx", "err.generic");
                         return null;
                 }
